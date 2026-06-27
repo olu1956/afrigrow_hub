@@ -1,51 +1,82 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Loader2, Plus, X } from "lucide-react";
 import { followUpTypeLabels, type ContactStatus, type FollowUpType } from "@/lib/crm-data";
+
+const sourceOptions = [
+  "Manual entry",
+  "Matching marketplace",
+  "Referral",
+  "Website enquiry",
+  "Store visit",
+  "Trade fair",
+  "Social media",
+  "Other",
+];
 
 type AddContactModalProps = {
   open: boolean;
   onClose: () => void;
+  saving?: boolean;
   onAdd: (contact: {
     name: string;
-    business: string;
     phone: string;
     email: string;
+    source: string;
     status: ContactStatus;
     notes: string;
-  }) => void;
+    nextFollowUp: string | null;
+  }) => void | Promise<void>;
 };
 
 const inputClass =
   "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
-export function AddContactModal({ open, onClose, onAdd }: AddContactModalProps) {
+export function AddContactModal({ open, onClose, onAdd, saving = false }: AddContactModalProps) {
   const [name, setName] = useState("");
-  const [business, setBusiness] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [source, setSource] = useState("Manual entry");
   const [status, setStatus] = useState<ContactStatus>("lead");
   const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [nextFollowUpDate, setNextFollowUpDate] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   if (!open) return null;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
-    onAdd({ name, business, phone, email, status, notes });
+
+    setSubmitting(true);
+
+    const nextFollowUp = nextFollowUpDate
+      ? new Date(`${nextFollowUpDate}T09:00:00`).toISOString()
+      : null;
+
+    await onAdd({
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      source,
+      status,
+      notes: notes.trim(),
+      nextFollowUp,
+    });
+
     setName("");
-    setBusiness("");
     setPhone("");
     setEmail("");
+    setSource("Manual entry");
     setStatus("lead");
     setNotes("");
-    setSaving(false);
+    setNextFollowUpDate("");
+    setSubmitting(false);
     onClose();
   }
+
+  const busy = saving || submitting;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
@@ -67,10 +98,6 @@ export function AddContactModal({ open, onClose, onAdd }: AddContactModalProps) 
             <label className="text-sm font-medium">Name *</label>
             <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Business</label>
-            <input className={inputClass} value={business} onChange={(e) => setBusiness(e.target.value)} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Phone</label>
@@ -82,16 +109,37 @@ export function AddContactModal({ open, onClose, onAdd }: AddContactModalProps) 
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Status</label>
-            <select
-              className={inputClass}
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ContactStatus)}
-            >
-              <option value="lead">Lead</option>
-              <option value="customer">Customer</option>
-              <option value="inactive">Inactive</option>
+            <label className="text-sm font-medium">Source</label>
+            <select className={inputClass} value={source} onChange={(e) => setSource(e.target.value)}>
+              {sourceOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Status</label>
+              <select
+                className={inputClass}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as ContactStatus)}
+              >
+                <option value="lead">Lead</option>
+                <option value="customer">Customer</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Next follow-up</label>
+              <input
+                type="date"
+                className={inputClass}
+                value={nextFollowUpDate}
+                onChange={(e) => setNextFollowUpDate(e.target.value)}
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Notes</label>
@@ -104,10 +152,10 @@ export function AddContactModal({ open, onClose, onAdd }: AddContactModalProps) 
           </div>
           <button
             type="submit"
-            disabled={saving || !name.trim()}
+            disabled={busy || !name.trim()}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Add contact
           </button>
         </form>
@@ -118,17 +166,33 @@ export function AddContactModal({ open, onClose, onAdd }: AddContactModalProps) 
 
 export function LogFollowUpForm({
   onLog,
+  disabled = false,
+  presetType = null,
 }: {
-  onLog: (type: FollowUpType, note: string) => void;
+  onLog: (type: FollowUpType, note: string) => void | Promise<void>;
+  disabled?: boolean;
+  presetType?: FollowUpType | null;
 }) {
   const [type, setType] = useState<FollowUpType>("whatsapp");
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const noteInputRef = useRef<HTMLInputElement>(null);
 
-  function handleSubmit(e: FormEvent) {
+  useEffect(() => {
+    if (!presetType) return;
+    setType(presetType);
+    noteInputRef.current?.focus();
+    noteInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [presetType]);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!note.trim()) return;
-    onLog(type, note.trim());
+
+    setSubmitting(true);
+    await onLog(type, note.trim());
     setNote("");
+    setSubmitting(false);
   }
 
   return (
@@ -138,6 +202,7 @@ export function LogFollowUpForm({
         <select
           value={type}
           onChange={(e) => setType(e.target.value as FollowUpType)}
+          disabled={disabled || submitting}
           className="rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
         >
           {Object.entries(followUpTypeLabels).map(([k, v]) => (
@@ -147,17 +212,19 @@ export function LogFollowUpForm({
           ))}
         </select>
         <input
+          ref={noteInputRef}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="What happened?"
+          disabled={disabled || submitting}
           className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
         />
         <button
           type="submit"
-          disabled={!note.trim()}
+          disabled={disabled || submitting || !note.trim()}
           className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
         >
-          Log
+          {submitting ? "Saving…" : "Log"}
         </button>
       </div>
     </form>

@@ -10,21 +10,38 @@ import {
 type EnquiryModalProps = {
   listing: MarketplaceListing | null;
   onClose: () => void;
+  onSent?: (listing: MarketplaceListing) => Promise<void> | void;
 };
 
-export function EnquiryModal({ listing, onClose }: EnquiryModalProps) {
+export function EnquiryModal({ listing, onClose, onSent }: EnquiryModalProps) {
   const [interest, setInterest] = useState(interestOptions[0]);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
   if (!listing) return null;
+
+  const currentListing = listing;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!message.trim()) return;
     setSending(true);
-    await new Promise((r) => setTimeout(r, 900));
+    setSaveWarning(null);
+
+    await new Promise((r) => setTimeout(r, 600));
+
+    if (onSent) {
+      await onSent(currentListing);
+    }
+
+    if (currentListing.source === "demo") {
+      setSaveWarning(
+        "Preview sent. Enquiries are only saved for live directory businesses once the database migration is applied.",
+      );
+    }
+
     setSending(false);
     setSent(true);
   }
@@ -33,8 +50,12 @@ export function EnquiryModal({ listing, onClose }: EnquiryModalProps) {
     setSent(false);
     setMessage("");
     setInterest(interestOptions[0]);
+    setSaveWarning(null);
     onClose();
   }
+
+  const alreadyEnquired =
+    currentListing.matchStatus === "enquired" || currentListing.matchStatus === "accepted";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
@@ -48,7 +69,7 @@ export function EnquiryModal({ listing, onClose }: EnquiryModalProps) {
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="font-semibold text-foreground">Send enquiry</h2>
-            <p className="text-sm text-muted">To {listing.name}</p>
+            <p className="text-sm text-muted">To {currentListing.name}</p>
           </div>
           <button
             type="button"
@@ -62,10 +83,14 @@ export function EnquiryModal({ listing, onClose }: EnquiryModalProps) {
 
         {sent ? (
           <div className="px-5 py-10 text-center">
-            <p className="font-semibold text-primary">Enquiry sent (preview)</p>
+            <p className="font-semibold text-primary">
+              {currentListing.source === "live" ? "Enquiry saved" : "Enquiry sent (preview)"}
+            </p>
             <p className="mt-2 text-sm text-muted">
-              {listing.name} will receive your message when messaging is connected
-              in a later phase.
+              {saveWarning ??
+                (currentListing.source === "live"
+                  ? `${currentListing.name} has been recorded in your marketplace matches. Messaging will connect in a later phase.`
+                  : `${currentListing.name} will receive your message when messaging is connected in a later phase.`)}
             </p>
             <button
               type="button"
@@ -77,6 +102,11 @@ export function EnquiryModal({ listing, onClose }: EnquiryModalProps) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 p-5">
+            {alreadyEnquired ? (
+              <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm text-primary">
+                You have already sent an enquiry for this match.
+              </div>
+            ) : null}
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-foreground">
                 Type of enquiry
@@ -102,7 +132,7 @@ export function EnquiryModal({ listing, onClose }: EnquiryModalProps) {
                 required
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder={`Hi ${listing.name}, I'm interested in connecting regarding…`}
+                placeholder={`Hi ${currentListing.name}, I'm interested in connecting regarding…`}
                 className="w-full resize-y rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -10,8 +10,14 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
+import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
+import {
+  getLatestPainPointReportAction,
+  savePainPointReportAction,
+  updatePainPointReportProgressAction,
+} from "@/lib/auth/growth-actions";
 import {
   buildCustomGrowthPlan,
   growthPlans,
@@ -20,18 +26,25 @@ import {
   type GrowthPlan,
   type PainPointId,
 } from "@/lib/growth-data";
+import { parseEstimatedGrowthPercent, resolveChallengeType } from "@/lib/growth/report-mapper";
 
 const inputClass =
   "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export function GrowthAgent() {
-  const { session } = useSession();
+  const { session, hydrated, authEnabled } = useSession();
+  const initialized = useRef(false);
   const [selected, setSelected] = useState<PainPointId | null>("visibility");
   const [customChallenge, setCustomChallenge] = useState("");
   const [activePlan, setActivePlan] = useState<GrowthPlan | null>(growthPlans.visibility);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(authEnabled);
   const [planReady, setPlanReady] = useState(true);
   const [completedActions, setCompletedActions] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [setupWarning, setSetupWarning] = useState<string | null>(null);
+  const [savedNotice, setSavedNotice] = useState(false);
 
   const hasCustomChallenge = customChallenge.trim().length > 0;
   const plan = activePlan;
@@ -43,83 +56,193 @@ export function GrowthAgent() {
     return total === 0 ? 0 : Math.round((done / total) * 100);
   }, [plan, completedActions]);
 
+  const estimatedGrowth = parseEstimatedGrowthPercent(plan);
+
+  useEffect(() => {
+    if (!hydrated || initialized.current) return;
+
+    async function init() {
+      if (!authEnabled) {
+        setLoadingReport(false);
+        initialized.current = true;
+        return;
+      }
+
+      setLoadingReport(true);
+      setError(null);
+
+      const result = await getLatestPainPointReportAction();
+      if (result.warning) {
+        setSetupWarning(result.warning);
+      }
+
+      if (!result.ok) {
+        setError(result.error ?? "Could not load your growth report.");
+        setLoadingReport(false);
+        initialized.current = true;
+        return;
+      }
+
+      if (result.report && result.plan) {
+        setReportId(result.report.id);
+        setActivePlan(result.plan);
+        setPlanReady(true);
+        setCompletedActions(new Set(result.completedActionIds ?? []));
+
+        if (result.report.challenge_type === "custom") {
+          setSelected(null);
+          setCustomChallenge(result.plan.challengeLabel ?? "");
+        } else {
+          setSelected(result.report.challenge_type as PainPointId);
+          setCustomChallenge("");
+        }
+      }
+
+      setLoadingReport(false);
+      initialized.current = true;
+    }
+
+    void init();
+  }, [authEnabled, hydrated]);
+
   async function analyze() {
     if (!selected && !customChallenge.trim()) return;
     setAnalyzing(true);
     setPlanReady(false);
     setCompletedActions(new Set());
+    setError(null);
+    setSavedNotice(false);
 
     const challenge = customChallenge.trim();
     await new Promise((r) => setTimeout(r, 1300));
 
-    if (challenge) {
-      setActivePlan(buildCustomGrowthPlan(challenge, session.name));
-    } else if (selected) {
-      setActivePlan(growthPlans[selected]);
+    const nextPlan = challenge
+      ? buildCustomGrowthPlan(challenge, session.name)
+      : selected
+        ? growthPlans[selected]
+        : null;
+
+    if (!nextPlan) {
+      setAnalyzing(false);
+      return;
     }
 
+    setActivePlan(nextPlan);
     setPlanReady(true);
+
+    if (authEnabled) {
+      const challengeType = resolveChallengeType(selected, customChallenge);
+      const result = await savePainPointReportAction({
+        challengeType,
+        plan: nextPlan,
+      });
+
+      if (!result.ok) {
+        setError(result.error ?? "Could not save your growth report.");
+      } else if (result.report) {
+        setReportId(result.report.id);
+        setSavedNotice(true);
+        window.setTimeout(() => setSavedNotice(false), 3000);
+      }
+    }
+
     setAnalyzing(false);
   }
 
-  function toggleAction(id: string) {
-    setCompletedActions((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  async function toggleAction(id: string) {
+    const nextCompleted = new Set(completedActions);
+    if (nextCompleted.has(id)) nextCompleted.delete(id);
+    else nextCompleted.add(id);
+    setCompletedActions(nextCompleted);
+
+    if (!authEnabled || !reportId || !plan) return;
+
+    const result = await updatePainPointReportProgressAction({
+      reportId,
+      plan,
+      completedActionIds: [...nextCompleted],
     });
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not update your progress.");
+      setCompletedActions(completedActions);
+    }
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        title="Growth & Pain Point Agent"
-        description="Identify what's holding your business back and get a step-by-step action plan tailored to African SMEs."
-        action={
-          <button
-            type="button"
-            onClick={analyze}
-            disabled={analyzing || (!selected && !customChallenge.trim())}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-60"
-          >
-            {analyzing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Analyse my business
-          </button>
-        }
-      />
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:col-span-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-muted">Action plan progress</p>
-            <p className="text-lg font-bold text-primary">{progress}%</p>
+    <DashboardPageLayout
+      title="Growth & Pain Point Agent"
+      description="Identify what's holding your business back and get a step-by-step action plan tailored to African SMEs."
+      action={
+        <button
+          type="button"
+          onClick={analyze}
+          disabled={analyzing || loadingReport || (!selected && !customChallenge.trim())}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-60"
+        >
+          {analyzing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          Analyse my business
+        </button>
+      }
+      heroExtra={
+        setupWarning || error || savedNotice || loadingReport ? (
+          <>
+            {loadingReport ? (
+              <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted">
+                Loading your saved growth report…
+              </div>
+            ) : null}
+            {setupWarning ? (
+              <div className="rounded-xl border border-accent/30 bg-accent-light/40 px-4 py-3 text-sm text-foreground">
+                <strong className="font-semibold">Database setup needed.</strong> {setupWarning}
+              </div>
+            ) : null}
+            {error ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+            {savedNotice ? (
+              <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm text-primary">
+                Growth report saved to your account.
+              </div>
+            ) : null}
+          </>
+        ) : undefined
+      }
+      heroFooter={
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className={`${dashboardCardClass} sm:col-span-2`}>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted">Action plan progress</p>
+              <p className="text-lg font-bold text-primary">{progress}%</p>
+            </div>
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-primary-light">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </div>
-          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-primary-light">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          <div className={`flex items-center gap-4 ${dashboardCardClass}`}>
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-light text-primary">
+              <TrendingUp className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-xl font-bold text-foreground">+{estimatedGrowth}%</p>
+              <p className="text-xs text-muted">Est. growth if plan completed</p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-light text-primary">
-            <TrendingUp className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-xl font-bold text-foreground">+18%</p>
-            <p className="text-xs text-muted">Est. growth if plan completed</p>
-          </div>
-        </div>
-      </div>
-
+      }
+    >
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="space-y-6 lg:col-span-2">
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <h2 className="mb-4 font-semibold text-foreground">
               What&apos;s your biggest challenge?
             </h2>
@@ -167,7 +290,7 @@ export function GrowthAgent() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <h2 className="mb-3 font-semibold text-foreground">
               Or describe your challenge
             </h2>
@@ -192,7 +315,7 @@ export function GrowthAgent() {
         </div>
 
         <div className="space-y-6 lg:col-span-3">
-          <section className="min-h-[400px] rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={`min-h-[400px] ${dashboardCardClass}`}>
             <h2 className="mb-4 font-semibold text-foreground">Your growth plan</h2>
 
             {analyzing && (
@@ -302,6 +425,6 @@ export function GrowthAgent() {
           </section>
         </div>
       </div>
-    </div>
+    </DashboardPageLayout>
   );
 }

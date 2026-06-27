@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
-import { bottomNav, mainNav, mockBusiness } from "@/lib/dashboard-nav";
-import { useSession } from "@/components/providers/SessionProvider";
+import { adminNav, bottomNav, mainNav } from "@/lib/dashboard-nav";
+import { useDashboardBusiness } from "@/lib/use-dashboard-business";
 
 type SidebarProps = {
   open: boolean;
   onClose: () => void;
+  showAdmin?: boolean;
 };
 
 function NavLink({
@@ -61,10 +62,9 @@ function NavLink({
   );
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
   const pathname = usePathname();
-  const { session, hydrated } = useSession();
-  const business = hydrated ? session : mockBusiness;
+  const { business } = useDashboardBusiness();
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
@@ -72,7 +72,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const content = (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center justify-between border-b border-border px-4 md:px-5">
-        <BrandLogo onClick={onClose} />
+        <BrandLogo onClick={onClose} size="sm" />
         <button
           type="button"
           onClick={onClose}
@@ -83,7 +83,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
           Workspace
         </p>
@@ -97,7 +97,22 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="border-t border-border px-3 py-4">
+      <div className="shrink-0 border-t border-border px-3 py-4">
+        {showAdmin ? (
+          <>
+            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
+              Admin
+            </p>
+            {adminNav.map((item) => (
+              <NavLink
+                key={item.href}
+                {...item}
+                active={isActive(item.href)}
+                onNavigate={onClose}
+              />
+            ))}
+          </>
+        ) : null}
         {bottomNav.map((item) => (
           <NavLink
             key={item.href}
@@ -124,7 +139,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   return (
     <>
-      <aside className="hidden w-72 shrink-0 border-r border-border bg-card md:flex md:flex-col">
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-card md:flex">
         {content}
       </aside>
 

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthDivider } from "@/components/auth/AuthDivider";
 import { AuthInput } from "@/components/auth/AuthInput";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
+import { signUpAction } from "@/lib/auth/actions";
+import { CountrySelect } from "@/components/dashboard/CountrySelect";
 import {
   type FieldErrors,
   validateEmail,
@@ -15,6 +18,7 @@ import {
   validateRequired,
 } from "@/lib/auth-validation";
 import { useSession } from "@/components/providers/SessionProvider";
+import { FREE_LAUNCH_CTA_LINE } from "@/lib/product-messaging";
 
 const businessTypes = [
   { value: "", label: "Select business type" },
@@ -28,17 +32,20 @@ const businessTypes = [
 ];
 
 export function SignUpForm() {
-  const { setSession } = useSession();
+  const router = useRouter();
+  const { setSession, authEnabled } = useSession();
   const [fullName, setFullName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState("");
+  const [country, setCountry] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
   function validate() {
     const next: FieldErrors = {};
@@ -51,6 +58,7 @@ export function SignUpForm() {
     if (fullNameError) next.fullName = fullNameError;
     if (businessNameError) next.businessName = businessNameError;
     if (!businessType) next.businessType = "Select your business type";
+    if (!country) next.country = "Select your country";
     if (emailError) next.email = emailError;
     if (passwordError) next.password = passwordError;
     if (confirmError) next.confirmPassword = confirmError;
@@ -65,30 +73,64 @@ export function SignUpForm() {
     if (!validate()) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1100));
-    setSession({
+    setFormError(null);
+
+    const payload = {
       owner: fullName.trim(),
       name: businessName.trim(),
       email: email.trim(),
       businessType,
-    });
+      country,
+      location: country,
+    };
+
+    if (authEnabled) {
+      const result = await signUpAction({
+        email: payload.email,
+        password,
+        fullName: payload.owner,
+        businessName: payload.name,
+        businessType: payload.businessType,
+        country: payload.country,
+      });
+
+      if (!result.ok) {
+        setFormError(result.error ?? "Unable to create account. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (result.needsEmailConfirmation) {
+        setNeedsConfirmation(true);
+        setLoading(false);
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 600));
+    setSession(payload);
     setLoading(false);
-    setSubmitted(true);
+    router.push("/dashboard");
   }
 
-  if (submitted) {
+  if (needsConfirmation) {
     return (
       <div className="rounded-2xl border border-primary/20 bg-primary-light p-6 text-center">
-        <p className="font-semibold text-primary">Account created (preview)</p>
+        <p className="font-semibold text-primary">Confirm your email</p>
         <p className="mt-2 text-sm text-muted">
-          Welcome, {fullName.split(" ")[0]}! Backend registration will be wired
-          in a later phase.
+          We sent a confirmation link to{" "}
+          <span className="font-medium text-foreground">{email}</span>. Click it to
+          activate your account, then log in.
         </p>
         <Link
-          href="/dashboard"
+          href="/login"
           className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
         >
-          Go to dashboard preview →
+          Go to log in →
         </Link>
       </div>
     );
@@ -96,8 +138,24 @@ export function SignUpForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {!authEnabled ? (
+        <p className="rounded-xl border border-dashed border-border bg-primary-light/40 px-4 py-3 text-xs text-muted">
+          Preview mode — add Supabase env vars to enable real registration.
+        </p>
+      ) : (
+        <p className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-xs text-primary">
+          {FREE_LAUNCH_CTA_LINE}
+        </p>
+      )}
+
       <SocialAuthButtons mode="signup" />
       <AuthDivider label="or register with email" />
+
+      {formError && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {formError}
+        </p>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <AuthInput
@@ -146,6 +204,27 @@ export function SignUpForm() {
         )}
       </div>
 
+      <div className="space-y-1.5">
+        <label htmlFor="country" className="block text-sm font-medium text-foreground">
+          Country
+        </label>
+        <CountrySelect
+          id="country"
+          name="country"
+          value={country}
+          onChange={setCountry}
+          required
+          className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+            errors.country ? "border-red-400" : "border-border"
+          } ${!country ? "text-muted" : ""}`}
+        />
+        {errors.country && (
+          <p className="text-xs text-red-600" role="alert">
+            {errors.country}
+          </p>
+        )}
+      </div>
+
       <AuthInput
         label="Work email"
         name="email"
@@ -188,8 +267,9 @@ export function SignUpForm() {
           />
           <span>
             I agree to the{" "}
-            <span className="font-medium text-primary">Terms of Service</span> and{" "}
-            <span className="font-medium text-primary">Privacy Policy</span>
+            <Link href="/privacy" className="font-medium text-primary hover:underline">
+              Privacy Policy
+            </Link>
           </span>
         </label>
         {errors.terms && (

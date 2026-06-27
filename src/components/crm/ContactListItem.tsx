@@ -1,8 +1,9 @@
 "use client";
 
 import { Mail, MessageCircle, Phone, User } from "lucide-react";
-import type { Contact } from "@/lib/crm-data";
+import type { Contact, FollowUpType } from "@/lib/crm-data";
 import { followUpTypeLabels, statusLabels, statusStyles } from "@/lib/crm-data";
+import { buildTelUrl, buildWhatsAppUrl } from "@/lib/crm/contact-links";
 
 type ContactListItemProps = {
   contact: Contact;
@@ -61,7 +62,18 @@ export function ContactListItem({ contact, selected, onSelect }: ContactListItem
   );
 }
 
-export function ContactDetail({ contact }: { contact: Contact }) {
+export function ContactDetail({
+  contact,
+  onMarkAsCustomer,
+  onQuickFollowUp,
+}: {
+  contact: Contact;
+  onMarkAsCustomer?: () => void;
+  onQuickFollowUp?: (type: FollowUpType) => void;
+}) {
+  const whatsAppUrl = contact.phone ? buildWhatsAppUrl(contact.phone) : null;
+  const telUrl = contact.phone ? buildTelUrl(contact.phone) : null;
+
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-4">
@@ -117,26 +129,48 @@ export function ContactDetail({ contact }: { contact: Contact }) {
       )}
 
       <div className="flex flex-wrap gap-2">
+        {whatsAppUrl ? (
+          <a
+            href={whatsAppUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
+          >
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white opacity-50"
+          >
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
+          </button>
+        )}
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
-        >
-          <MessageCircle className="h-4 w-4" />
-          WhatsApp
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:border-primary/30"
+          disabled={!telUrl}
+          onClick={() => {
+            if (telUrl) {
+              window.location.href = telUrl;
+            }
+            onQuickFollowUp?.("call");
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:border-primary/30 disabled:opacity-50"
         >
           <Phone className="h-4 w-4" />
           Log call
         </button>
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:border-primary/30"
+          onClick={onMarkAsCustomer}
+          disabled={contact.status === "customer" || !onMarkAsCustomer}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:border-primary/30 disabled:opacity-50"
         >
           <User className="h-4 w-4" />
-          Mark as customer
+          {contact.status === "customer" ? "Already a customer" : "Mark as customer"}
         </button>
       </div>
     </div>

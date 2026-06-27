@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Bot } from "lucide-react";
 import { agentModules } from "@/lib/dashboard-nav";
+import { EARLY_ACCESS_LABEL } from "@/lib/product-messaging";
 
 export function Agents() {
   return (
@@ -42,7 +43,7 @@ export function Agents() {
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="rounded-full bg-accent-light px-2.5 py-0.5 text-xs font-semibold text-accent">
-                    Phase 1
+                    {EARLY_ACCESS_LABEL}
                   </span>
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-foreground">

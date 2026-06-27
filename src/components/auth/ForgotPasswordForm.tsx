@@ -5,11 +5,15 @@ import { FormEvent, useState } from "react";
 import { ArrowLeft, MailCheck } from "lucide-react";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthInput } from "@/components/auth/AuthInput";
+import { resetPasswordAction } from "@/lib/auth/actions";
 import { type FieldErrors, validateEmail } from "@/lib/auth-validation";
+import { useSession } from "@/components/providers/SessionProvider";
 
 export function ForgotPasswordForm() {
+  const { authEnabled } = useSession();
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -21,8 +25,20 @@ export function ForgotPasswordForm() {
       return;
     }
     setErrors({});
+    setFormError(null);
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+
+    if (authEnabled) {
+      const result = await resetPasswordAction(email.trim());
+      if (!result.ok) {
+        setFormError(result.error ?? "Unable to send reset email.");
+        setLoading(false);
+        return;
+      }
+    } else {
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
     setLoading(false);
     setSent(true);
   }
@@ -37,7 +53,8 @@ export function ForgotPasswordForm() {
         <p className="mt-2 text-sm text-muted">
           If an account exists for{" "}
           <span className="font-medium text-foreground">{email}</span>, we&apos;ve
-          sent password reset instructions. (Preview — no email sent yet.)
+          sent password reset instructions.
+          {!authEnabled && " (Preview — no email sent yet.)"}
         </p>
         <Link
           href="/login"
@@ -52,6 +69,12 @@ export function ForgotPasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {formError && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {formError}
+        </p>
+      )}
+
       <AuthInput
         label="Email address"
         name="email"

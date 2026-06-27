@@ -4,6 +4,8 @@ export type SessionPreview = {
   email: string;
   plan: string;
   location: string;
+  country: string;
+  role: string;
   initials: string;
   businessType?: string;
 };
@@ -26,6 +28,8 @@ export function defaultSession(): SessionPreview {
     email: "hello@amarastextiles.com",
     plan: "Growth",
     location: "Lagos, Nigeria",
+    country: "Nigeria",
+    role: "owner",
     initials: "AO",
   };
 }
@@ -43,11 +47,16 @@ export function loadSessionPreview(): SessionPreview {
 
 export function saveSessionPreview(
   data: Pick<SessionPreview, "owner" | "name" | "email"> &
-    Partial<Pick<SessionPreview, "plan" | "location" | "businessType">>,
+    Partial<
+      Pick<SessionPreview, "plan" | "location" | "country" | "role" | "businessType">
+    >,
 ): SessionPreview {
-  const existing = loadSessionPreview();
   const session: SessionPreview = {
-    ...existing,
+    plan: "Growth",
+    location: "",
+    country: "",
+    role: "owner",
+    businessType: undefined,
     ...data,
     initials: initialsFromName(data.owner),
   };

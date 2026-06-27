@@ -1,15 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BookOpen, Building2, Search, Star } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, Building2, Loader2, Search, Star } from "lucide-react";
+import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
+import { DashboardStatGrid } from "@/components/dashboard/DashboardPageCanvas";
 import { DirectoryListingCard } from "@/components/directory/DirectoryListingCard";
 import { DirectoryProfileModal } from "@/components/directory/DirectoryProfileModal";
+import { ProfileDirectoryNudge } from "@/components/profile/ProfileDirectoryNudge";
 import {
+  getDirectoryListingsAction,
+  getMyDirectoryStatusAction,
+} from "@/lib/auth/directory-actions";
+import { getDirectoryNudge } from "@/lib/directory/profile-directory-nudge";
+import { DIRECTORY_MIN_PROFILE_SCORE } from "@/lib/directory/constants";
+import { useSession } from "@/components/providers/SessionProvider";
+import {
+  buildCountryFilters,
   categoryFilters,
-  countryFilters,
-  directoryListings,
+  directoryListings as sampleDirectoryListings,
   filterDirectoryListings,
+  mergeDirectoryListings,
   sortOptions,
   type DirectoryListing,
   type ListingCategory,
@@ -17,53 +27,154 @@ import {
 } from "@/lib/directory-data";
 
 export function BusinessDirectory() {
+  const { authEnabled } = useSession();
+  const [liveListings, setLiveListings] = useState<DirectoryListing[]>([]);
+  const [loading, setLoading] = useState(authEnabled);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [category, setCategory] = useState<ListingCategory | "all">("all");
   const [country, setCountry] = useState("All countries");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOption>("featured");
   const [selected, setSelected] = useState<DirectoryListing | null>(null);
+  const [myProfileScore, setMyProfileScore] = useState<number | null>(null);
+  const [listedInDirectory, setListedInDirectory] = useState(false);
+
+  useEffect(() => {
+    if (!authEnabled) {
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+
+      const [result, myStatus] = await Promise.all([
+        getDirectoryListingsAction(),
+        getMyDirectoryStatusAction(),
+      ]);
+      if (!active) return;
+
+      if (!result.ok) {
+        setLoadError(result.error ?? "Unable to load directory listings.");
+        setLiveListings([]);
+      } else {
+        setLiveListings(result.listings);
+      }
+
+      if (myStatus.ok) {
+        setMyProfileScore(myStatus.profileScore);
+        setListedInDirectory(myStatus.listed);
+      }
+
+      setLoading(false);
+    }
+
+    load();
+
+    return () => {
+      active = false;
+    };
+  }, [authEnabled]);
+
+  const allListings = useMemo(
+    () =>
+      mergeDirectoryListings(
+        liveListings,
+        sampleDirectoryListings,
+        !authEnabled || liveListings.length === 0,
+      ),
+    [authEnabled, liveListings],
+  );
+
+  const countryFilters = useMemo(() => buildCountryFilters(allListings), [allListings]);
 
   const filtered = useMemo(
     () =>
-      filterDirectoryListings(directoryListings, {
+      filterDirectoryListings(allListings, {
         category,
         country,
         search,
         sort,
       }),
-    [category, country, search, sort],
+    [allListings, category, country, search, sort],
   );
 
-  const featuredCount = directoryListings.filter((l) => l.featured).length;
-  const verifiedCount = directoryListings.filter((l) => l.verified).length;
+  const liveCount = liveListings.length;
+  const sampleCount = allListings.filter((l) => l.source === "sample").length;
+  const featuredCount = allListings.filter((l) => l.featured).length;
+  const verifiedCount = allListings.filter((l) => l.verified).length;
+  const directoryNudge =
+    myProfileScore !== null
+      ? getDirectoryNudge({
+          strength: myProfileScore,
+          savedStrength: myProfileScore,
+          listed: listedInDirectory,
+        })
+      : null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        title="Business Directory"
-        description="Discover verified African SMEs across retail, manufacturing, services, and more."
-      />
+    <DashboardPageLayout
+      title="Business Directory"
+      description={
+        authEnabled
+          ? "Browse AfriGrow member profiles. Sample listings are marked until more businesses join."
+          : "Discover African SMEs across retail, manufacturing, services, and more."
+      }
+      heroExtra={
+        loadError ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+            {loadError}
+          </p>
+        ) : authEnabled && directoryNudge ? (
+          <ProfileDirectoryNudge content={directoryNudge} compact />
+        ) : undefined
+      }
+      heroFooter={
+        <DashboardStatGrid
+          stats={[
+            {
+              icon: Building2,
+              label: authEnabled ? "Live listings" : "Listed businesses",
+              value: loading ? "…" : String(liveCount || allListings.length),
+            },
+            {
+              icon: Star,
+              label: "Featured listings",
+              value: loading ? "…" : String(featuredCount),
+            },
+            {
+              icon: BookOpen,
+              label: "Verified profiles",
+              value: loading ? "…" : String(verifiedCount),
+            },
+          ]}
+        />
+      }
+    >
+      {authEnabled && liveCount > 0 && listedInDirectory && (
+        <p className="rounded-xl border border-primary/20 bg-primary-light/40 px-4 py-3 text-sm text-foreground">
+          <span className="font-semibold text-primary">Your business is listed here.</span>{" "}
+          {liveCount} live profile{liveCount !== 1 ? "s" : ""} from AfriGrow members — including yours at{" "}
+          {myProfileScore ?? DIRECTORY_MIN_PROFILE_SCORE}% strength.
+        </p>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {[
-          { icon: Building2, label: "Listed businesses", value: String(directoryListings.length) },
-          { icon: Star, label: "Featured listings", value: String(featuredCount) },
-          { icon: BookOpen, label: "Verified profiles", value: String(verifiedCount) },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm"
-          >
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-light text-primary">
-              <stat.icon className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-xl font-bold text-foreground">{stat.value}</p>
-              <p className="text-xs text-muted">{stat.label}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      {authEnabled && liveCount > 0 && !listedInDirectory && (
+        <p className="rounded-xl border border-primary/20 bg-primary-light/40 px-4 py-3 text-sm text-foreground">
+          <span className="font-semibold text-primary">{liveCount} live profile{liveCount !== 1 ? "s" : ""}</span>{" "}
+          from AfriGrow members. Reach {DIRECTORY_MIN_PROFILE_SCORE}% profile strength to join them.
+        </p>
+      )}
+
+      {authEnabled && !loading && liveCount === 0 && sampleCount > 0 && !listedInDirectory && (
+        <p className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted">
+          <span className="font-semibold text-foreground">Sample listings shown.</span> Complete your
+          profile to 40% to appear here — be among the first live businesses in your category.
+        </p>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -111,7 +222,11 @@ export function BusinessDirectory() {
         </select>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex min-h-[30vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center">
           <p className="font-semibold text-foreground">No businesses found</p>
           <p className="mt-2 text-sm text-muted">Try adjusting your search or filters.</p>
@@ -120,6 +235,7 @@ export function BusinessDirectory() {
         <>
           <p className="text-sm text-muted">
             Showing {filtered.length} business{filtered.length !== 1 ? "es" : ""}
+            {liveCount > 0 ? ` (${liveCount} live)` : ""}
           </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((listing) => (
@@ -134,6 +250,6 @@ export function BusinessDirectory() {
       )}
 
       <DirectoryProfileModal listing={selected} onClose={() => setSelected(null)} />
-    </div>
+    </DashboardPageLayout>
   );
 }

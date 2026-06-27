@@ -1,6 +1,16 @@
 export type FundingType = "grant" | "loan" | "accelerator" | "equity";
 
-export type GrantOpportunity = {
+export type BusinessStage = "idea" | "pre_revenue" | "early" | "growth" | "established";
+
+export const businessStageOptions: { value: BusinessStage; label: string }[] = [
+  { value: "idea", label: "Idea stage" },
+  { value: "pre_revenue", label: "Pre-revenue / startup" },
+  { value: "early", label: "Early revenue" },
+  { value: "growth", label: "Growth stage" },
+  { value: "established", label: "Established" },
+];
+
+export type FundingOpportunityDefinition = {
   id: string;
   name: string;
   provider: string;
@@ -10,9 +20,23 @@ export type GrantOpportunity = {
   deadline: string;
   eligibility: string;
   description: string;
-  matchScore: number;
+  applyUrl: string;
   sectors: string[];
+  /** Normalized country keys plus region tokens: africa, west-africa, uk, nigeria, etc. */
+  countryKeys: string[];
+  eligibleStages: BusinessStage[];
+  sectorKeys?: string[];
+  fundingMin?: number;
+  fundingMax?: number;
+  fundingCurrency?: string;
 };
+
+export type MatchedGrantOpportunity = FundingOpportunityDefinition & {
+  matchScore: number;
+};
+
+/** @deprecated Use MatchedGrantOpportunity — scores are computed at runtime. */
+export type GrantOpportunity = MatchedGrantOpportunity;
 
 export type ReadinessItem = {
   id: string;
@@ -43,6 +67,9 @@ export const typeStyles: Record<FundingType, string> = {
   accelerator: "bg-accent-light text-accent",
   equity: "bg-purple-50 text-purple-700",
 };
+
+export const FUNDING_DISCLAIMER =
+  "AfriGrow helps you prepare and find programmes — funding decisions are made by each provider, not AfriGrow Hub.";
 
 export const readinessItems: ReadinessItem[] = [
   {
@@ -105,7 +132,7 @@ export const readinessItems: ReadinessItem[] = [
 
 export const defaultCompletedItems = new Set(["r1", "r4", "r5", "r8"]);
 
-export const grantOpportunities: GrantOpportunity[] = [
+export const fundingOpportunities: FundingOpportunityDefinition[] = [
   {
     id: "g1",
     name: "Tony Elumelu Foundation Entrepreneurship Programme",
@@ -117,8 +144,14 @@ export const grantOpportunities: GrantOpportunity[] = [
     eligibility: "African entrepreneurs, early-stage businesses",
     description:
       "Seed funding, mentorship, and training for African entrepreneurs building scalable businesses.",
-    matchScore: 94,
+    applyUrl: "https://www.tonyelumelufoundation.org/programme",
     sectors: ["Retail", "Manufacturing", "Services"],
+    countryKeys: ["africa"],
+    eligibleStages: ["idea", "pre_revenue", "early"],
+    sectorKeys: ["retail", "manufacturing", "services", "food", "tech", "other"],
+    fundingMin: 0,
+    fundingMax: 25_000,
+    fundingCurrency: "USD",
   },
   {
     id: "g2",
@@ -131,8 +164,14 @@ export const grantOpportunities: GrantOpportunity[] = [
     eligibility: "Registered Nigerian SMEs with 2+ years operations",
     description:
       "Low-interest loans for equipment, working capital, and business expansion.",
-    matchScore: 88,
+    applyUrl: "https://www.boi.ng/",
     sectors: ["Manufacturing", "Retail", "Agro-processing"],
+    countryKeys: ["nigeria"],
+    eligibleStages: ["growth", "established"],
+    sectorKeys: ["manufacturing", "retail", "food", "services"],
+    fundingMin: 1_000_000,
+    fundingMax: 10_000_000,
+    fundingCurrency: "NGN",
   },
   {
     id: "g3",
@@ -145,8 +184,14 @@ export const grantOpportunities: GrantOpportunity[] = [
     eligibility: "Tech-enabled startups, seed to Series A",
     description:
       "3-month accelerator with mentorship, Google Cloud credits, and investor access.",
-    matchScore: 72,
+    applyUrl: "https://startup.google.com/programs/accelerator/africa/",
     sectors: ["Tech", "E-commerce", "Services"],
+    countryKeys: ["africa"],
+    eligibleStages: ["pre_revenue", "early", "growth"],
+    sectorKeys: ["tech", "services", "retail"],
+    fundingMin: 0,
+    fundingMax: 500_000,
+    fundingCurrency: "USD",
   },
   {
     id: "g4",
@@ -159,8 +204,14 @@ export const grantOpportunities: GrantOpportunity[] = [
     eligibility: "Lagos-based SMEs, 1+ year in business",
     description:
       "Affordable loans for Lagos businesses to create jobs and expand operations.",
-    matchScore: 91,
+    applyUrl: "https://lsetf.ng/",
     sectors: ["Retail", "Services", "Manufacturing"],
+    countryKeys: ["nigeria"],
+    eligibleStages: ["early", "growth", "established"],
+    sectorKeys: ["retail", "services", "manufacturing", "food", "events"],
+    fundingMin: 500_000,
+    fundingMax: 5_000_000,
+    fundingCurrency: "NGN",
   },
   {
     id: "g5",
@@ -173,8 +224,14 @@ export const grantOpportunities: GrantOpportunity[] = [
     eligibility: "Micro & small enterprises, women-led preferred",
     description:
       "Grants for MSMEs to improve productivity, digitise, and access new markets.",
-    matchScore: 86,
+    applyUrl: "https://www.afdb.org/en/topics-and-sectors/initiatives-partnerships/african-development-bank-group-msme-initiative",
     sectors: ["Retail", "Manufacturing", "Food"],
+    countryKeys: ["west-africa"],
+    eligibleStages: ["early", "growth"],
+    sectorKeys: ["retail", "manufacturing", "food", "services"],
+    fundingMin: 2_000,
+    fundingMax: 15_000,
+    fundingCurrency: "USD",
   },
   {
     id: "g6",
@@ -187,10 +244,159 @@ export const grantOpportunities: GrantOpportunity[] = [
     eligibility: "Women-led businesses with revenue traction",
     description:
       "Equity investment and growth support for ambitious women entrepreneurs.",
-    matchScore: 79,
+    applyUrl: "https://sheleadsafrica.org/",
     sectors: ["Retail", "Services", "Tech"],
+    countryKeys: ["africa"],
+    eligibleStages: ["growth", "established"],
+    sectorKeys: ["retail", "services", "tech", "food", "events"],
+    fundingMin: 50_000,
+    fundingMax: 250_000,
+    fundingCurrency: "USD",
+  },
+  {
+    id: "uk1",
+    name: "Start Up Loans",
+    provider: "British Business Bank",
+    type: "loan",
+    amount: "£500 – £25,000",
+    region: "United Kingdom",
+    deadline: "Rolling",
+    eligibility: "UK businesses trading less than 3 years",
+    description:
+      "Government-backed personal loans for business owners with free mentoring and support.",
+    applyUrl: "https://www.startuploans.co.uk/",
+    sectors: ["Retail", "Services", "Events", "Food"],
+    countryKeys: ["uk"],
+    eligibleStages: ["idea", "pre_revenue", "early", "growth"],
+    sectorKeys: ["retail", "services", "events", "food", "tech", "manufacturing", "other"],
+    fundingMin: 500,
+    fundingMax: 25_000,
+    fundingCurrency: "GBP",
+  },
+  {
+    id: "uk2",
+    name: "Growth Guarantee Scheme",
+    provider: "British Business Bank",
+    type: "loan",
+    amount: "£25,000 – £2M",
+    region: "United Kingdom",
+    deadline: "Rolling",
+    eligibility: "UK SMEs seeking growth or working capital finance",
+    description:
+      "Government-backed guarantee to help businesses access bank lending for expansion.",
+    applyUrl: "https://www.british-business-bank.co.uk/business-guidance/guidance-articles/finance/growth-guarantee-scheme",
+    sectors: ["Manufacturing", "Services", "Retail"],
+    countryKeys: ["uk"],
+    eligibleStages: ["growth", "established"],
+    sectorKeys: ["manufacturing", "services", "retail", "events", "food"],
+    fundingMin: 25_000,
+    fundingMax: 2_000_000,
+    fundingCurrency: "GBP",
+  },
+  {
+    id: "uk3",
+    name: "UK Shared Prosperity Fund (local grants)",
+    provider: "UK Government / local councils",
+    type: "grant",
+    amount: "Varies by council",
+    region: "United Kingdom",
+    deadline: "Rolling",
+    eligibility: "UK SMEs — check your local council for open calls",
+    description:
+      "Place-based grants for business growth, skills, and community projects across the UK.",
+    applyUrl: "https://www.gov.uk/government/collections/uk-shared-prosperity-fund-prospectus",
+    sectors: ["Retail", "Services", "Events", "Manufacturing"],
+    countryKeys: ["uk"],
+    eligibleStages: ["early", "growth", "established"],
+    sectorKeys: ["retail", "services", "events", "manufacturing", "food", "other"],
+    fundingMin: 1_000,
+    fundingMax: 100_000,
+    fundingCurrency: "GBP",
+  },
+  {
+    id: "uk4",
+    name: "Prince's Trust Enterprise Programme",
+    provider: "The Prince's Trust",
+    type: "grant",
+    amount: "Up to £5,000 + mentoring",
+    region: "United Kingdom",
+    deadline: "Rolling",
+    eligibility: "UK residents aged 18–30 starting or growing a business",
+    description:
+      "Grants, training, and mentoring for young entrepreneurs launching or scaling a venture.",
+    applyUrl: "https://www.princes-trust.org.uk/help-for-young-people/support-starting-business",
+    sectors: ["Retail", "Services", "Events", "Tech"],
+    countryKeys: ["uk"],
+    eligibleStages: ["idea", "pre_revenue", "early"],
+    sectorKeys: ["retail", "services", "events", "tech", "food", "other"],
+    fundingMin: 0,
+    fundingMax: 5_000,
+    fundingCurrency: "GBP",
+  },
+  {
+    id: "uk5",
+    name: "Innovate UK Smart Grants",
+    provider: "Innovate UK",
+    type: "grant",
+    amount: "£25,000 – £500,000",
+    region: "United Kingdom",
+    deadline: "Periodic calls",
+    eligibility: "UK businesses with innovative products or services",
+    description:
+      "R&D grants for game-changing and commercially viable innovation projects.",
+    applyUrl: "https://www.ukri.org/opportunity/innovate-uk-smart-grants/",
+    sectors: ["Tech", "Manufacturing", "Services"],
+    countryKeys: ["uk"],
+    eligibleStages: ["early", "growth", "established"],
+    sectorKeys: ["tech", "manufacturing", "services"],
+    fundingMin: 25_000,
+    fundingMax: 500_000,
+    fundingCurrency: "GBP",
+  },
+  {
+    id: "gh1",
+    name: "GIRSAL-backed SME Facility",
+    provider: "Ghana Incentive-Based Risk Sharing System",
+    type: "loan",
+    amount: "Varies by partner bank",
+    region: "Ghana",
+    deadline: "Rolling",
+    eligibility: "Registered Ghanaian SMEs via partner banks",
+    description:
+      "Credit guarantee scheme helping Ghanaian SMEs access bank loans at better terms.",
+    applyUrl: "https://girsal.com.gh/",
+    sectors: ["Manufacturing", "Retail", "Agro-processing"],
+    countryKeys: ["ghana"],
+    eligibleStages: ["early", "growth", "established"],
+    sectorKeys: ["manufacturing", "retail", "food", "services"],
+    fundingMin: 50_000,
+    fundingMax: 2_000_000,
+    fundingCurrency: "GHS",
+  },
+  {
+    id: "ke1",
+    name: "Youth Enterprise Development Fund",
+    provider: "Government of Kenya",
+    type: "loan",
+    amount: "Up to KSh 5M",
+    region: "Kenya",
+    deadline: "Rolling",
+    eligibility: "Kenyan youth-led enterprises (18–35)",
+    description:
+      "Affordable credit for young entrepreneurs to start or expand a business in Kenya.",
+    applyUrl: "https://www.youthfund.go.ke/",
+    sectors: ["Retail", "Services", "Manufacturing"],
+    countryKeys: ["kenya"],
+    eligibleStages: ["idea", "pre_revenue", "early", "growth"],
+    sectorKeys: ["retail", "services", "manufacturing", "tech", "food"],
+    fundingMin: 100_000,
+    fundingMax: 5_000_000,
+    fundingCurrency: "KES",
   },
 ];
+
+/** @deprecated Use fundingOpportunities — match scores are computed at runtime. */
+export const grantOpportunities = fundingOpportunities;
 
 export const categoryLabels = {
   documents: "Documents",

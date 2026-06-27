@@ -1,23 +1,52 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Mail, MapPin, MessageSquare, Phone } from "lucide-react";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthInput } from "@/components/auth/AuthInput";
+import { submitContactMessageAction } from "@/lib/auth/enterprise-enquiry-actions";
 
 export function ContactForm() {
+  const searchParams = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("plan") !== "enterprise") return;
+
+    setSubject((current) => current || "Enterprise plan enquiry");
+    setMessage(
+      (current) =>
+        current ||
+        "Hi, I would like to discuss AfriGrow Hub Enterprise pricing for my business.",
+    );
+  }, [searchParams]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+    setError(null);
+
+    const result = await submitContactMessageAction({
+      name,
+      email,
+      subject,
+      message,
+    });
+
     setLoading(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not send your message.");
+      return;
+    }
+
     setSubmitted(true);
   }
 
@@ -59,12 +88,11 @@ export function ContactForm() {
             );
           })}
 
-          <div className="rounded-2xl border border-dashed border-border bg-primary-light/30 p-5">
+          <div className="rounded-2xl border border-primary/15 bg-primary-light/30 p-5">
             <div className="flex items-start gap-3">
               <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <p className="text-sm text-muted">
-                Contact form submissions are preview-only in Phase 1. A live
-                support inbox will be connected in a later release.
+                Messages are saved to our team inbox. We aim to reply within 2 business days.
               </p>
             </div>
           </div>
@@ -73,15 +101,21 @@ export function ContactForm() {
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm lg:col-span-3">
           {submitted ? (
             <div className="rounded-2xl border border-primary/20 bg-primary-light p-6 text-center">
-              <p className="font-semibold text-primary">Message sent (preview)</p>
+              <p className="font-semibold text-primary">Message sent</p>
               <p className="mt-2 text-sm text-muted">
-                Thanks, {name || "there"}! We&apos;ll be in touch at {email || "your email"}{" "}
-                once live messaging is enabled.
+                Thanks, {name || "there"}! We&apos;ll be in touch at {email || "your email"}.
               </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               <h2 className="text-lg font-semibold text-foreground">Send a message</h2>
+
+              {error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
               <div className="grid gap-5 sm:grid-cols-2">
                 <AuthInput
                   label="Your name"

@@ -50,8 +50,32 @@ export type GeneratedContent = {
   title: string;
   body: string;
   hashtags?: string;
+  platform?: string;
   createdAt: string;
+  status?: "draft" | "generated" | "scheduled" | "published" | "archived";
 };
+
+const contentTypeShortLabels: Record<ContentType, string> = {
+  social: "Social",
+  whatsapp: "WhatsApp",
+  flyer: "Flyer",
+  email: "Email",
+};
+
+export function getContentTypeShortLabel(type: ContentType): string {
+  return contentTypeShortLabels[type];
+}
+
+export function formatCampaignMeta(
+  platform?: string,
+  type?: ContentType,
+): string | undefined {
+  const typeLabel = type ? getContentTypeShortLabel(type) : undefined;
+  const trimmedPlatform = platform?.trim();
+
+  if (trimmedPlatform && typeLabel) return `${trimmedPlatform} · ${typeLabel}`;
+  return trimmedPlatform || typeLabel;
+}
 
 export type QuickTemplate = {
   id: string;

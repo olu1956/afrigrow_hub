@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
+import { homeSectionLinks } from "@/lib/home-nav";
+import { initiativeLinks } from "@/lib/initiatives-nav";
+import { EARLY_ACCESS_FOOTER } from "@/lib/product-messaging";
 
 export function Footer() {
   return (
@@ -7,39 +10,39 @@ export function Footer() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white">
-                <Sprout className="h-4 w-4" />
-              </span>
-              <span className="font-bold text-white">
-                AfriGrow<span className="text-accent"> Hub</span>
-              </span>
-            </Link>
+            <BrandLogo
+              size="md"
+              className="rounded-xl bg-white/95 p-1.5"
+            />
             <p className="mt-3 max-w-xs text-sm text-white/75">
               AI-powered business growth, promotion, automation and connection
               for African SMEs.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-sm font-semibold text-white">Product</p>
               <ul className="mt-3 space-y-2 text-sm text-white/75">
-                <li>
-                  <a href="#features" className="transition hover:text-white">
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a href="#agents" className="transition hover:text-white">
-                    AI Agents
-                  </a>
-                </li>
-                <li>
-                  <a href="#pricing" className="transition hover:text-white">
-                    Pricing
-                  </a>
-                </li>
+                {homeSectionLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="transition hover:text-white">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Initiatives</p>
+              <ul className="mt-3 space-y-2 text-sm text-white/75">
+                {initiativeLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="transition hover:text-white">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
             <div>
@@ -53,6 +56,16 @@ export function Footer() {
                 <li>
                   <Link href="/contact" className="transition hover:text-white">
                     Contact
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/partners" className="transition hover:text-white">
+                    Our Partners
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/partners/become-a-partner" className="transition hover:text-white">
+                    Become a Partner
                   </Link>
                 </li>
                 <li>
@@ -86,7 +99,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/15 pt-8 text-center text-sm text-white/60">
-          © {new Date().getFullYear()} AfriGrow Hub. Phase 1 — UI/UX preview.
+          © {new Date().getFullYear()} AfriGrow Hub. {EARLY_ACCESS_FOOTER}
         </div>
       </div>
     </footer>

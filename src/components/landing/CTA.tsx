@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { FREE_LAUNCH_CTA_LINE } from "@/lib/product-messaging";
 
 export function CTA() {
   return (
@@ -14,8 +15,11 @@ export function CTA() {
             Ready to grow your business?
           </h2>
           <p className="relative mx-auto mt-4 max-w-xl text-lg text-white/80">
-            Join African SMEs using AI agents to promote, connect, and scale —
-            without the overhead of a full marketing team.
+            Join African SMEs testing AfriGrow Hub during free early access — promote,
+            connect, and get funding-ready with AI agents.
+          </p>
+          <p className="relative mx-auto mt-2 max-w-lg text-sm text-white/70">
+            {FREE_LAUNCH_CTA_LINE}
           </p>
           <Link
             href="/join"

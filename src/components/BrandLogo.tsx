@@ -1,26 +1,40 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import {
+  BRAND_LOGO_ALT,
+  BRAND_LOGO_PATH,
+  brandLogoSizes,
+  type BrandLogoSize,
+} from "@/lib/brand-logo";
 
 type BrandLogoProps = {
   href?: string;
   className?: string;
   onClick?: () => void;
+  size?: BrandLogoSize;
 };
 
-export function BrandLogo({ href = "/", className = "", onClick }: BrandLogoProps) {
+export function BrandLogo({
+  href = "/",
+  className = "",
+  onClick,
+  size = "md",
+}: BrandLogoProps) {
   return (
     <Link
       href={href}
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-2.5 transition hover:opacity-90 ${className}`}
+      className={`inline-flex shrink-0 items-center transition hover:opacity-90 ${className}`}
       aria-label="AfriGrow Hub home"
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
-        <Sprout className="h-5 w-5" strokeWidth={2.2} />
-      </span>
-      <span className="text-lg font-bold tracking-tight text-foreground">
-        AfriGrow<span className="text-primary"> Hub</span>
-      </span>
+      <Image
+        src={BRAND_LOGO_PATH}
+        alt={BRAND_LOGO_ALT}
+        width={1024}
+        height={1024}
+        priority
+        className={`${brandLogoSizes[size]} object-contain`}
+      />
     </Link>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Building2,
   Globe,
@@ -24,8 +25,19 @@ export function ProfilePreview({ profile, initials }: ProfilePreviewProps) {
     <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="bg-gradient-to-br from-primary-dark to-primary px-5 py-6 text-white">
         <div className="flex items-start gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-xl font-bold">
-            {initials || "?"}
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15 text-xl font-bold">
+            {profile.logoUrl ? (
+              <Image
+                src={profile.logoUrl}
+                alt=""
+                width={56}
+                height={56}
+                className="h-full w-full object-cover"
+                unoptimized
+              />
+            ) : (
+              initials || "?"
+            )}
           </span>
           <div className="min-w-0">
             <h3 className="text-lg font-bold leading-tight">

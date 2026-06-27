@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { EARLY_ACCESS_FOOTER } from "@/lib/product-messaging";
 
 export function DashboardFooter() {
   return (
     <footer className="shrink-0 border-t border-primary-dark/20 bg-gradient-to-r from-primary-dark to-primary px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
         <p className="text-xs text-white/70">
-          © {new Date().getFullYear()} AfriGrow Hub. Phase 1 — UI/UX preview.
+          © {new Date().getFullYear()} AfriGrow Hub. {EARLY_ACCESS_FOOTER}
         </p>
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs font-medium text-white/80">
           <Link href="/" className="transition hover:text-white">

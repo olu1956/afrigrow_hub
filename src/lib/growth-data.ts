@@ -372,7 +372,7 @@ export const priorityStyles = {
   low: "bg-primary-light text-primary border-primary/20",
 };
 
-function inferPainPointFromChallenge(challenge: string): PainPointId {
+export function inferPainPointFromChallenge(challenge: string): PainPointId {
   const lower = challenge.toLowerCase();
   const rules: [RegExp, PainPointId][] = [
     [/\b(credit|fund|loan|grant|capital|financ|borrow|investment|cash\s?flow|liquidity)\b/, "cashflow"],

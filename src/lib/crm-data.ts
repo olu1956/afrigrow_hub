@@ -187,6 +187,8 @@ export const initialContacts: Contact[] = [
   },
 ];
 
+export const demoContacts = initialContacts;
+
 export function isFollowUpDue(contact: Contact): boolean {
   return (
     contact.nextFollowUp === "Today" ||

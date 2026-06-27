@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { PRICING_GROWTH_EARLY_ACCESS, PRICING_SUBTITLE } from "@/lib/product-messaging";
 
 const plans = [
   {
@@ -18,17 +19,18 @@ const plans = [
   },
   {
     name: "Growth",
-    price: "£29",
-    period: "/ month",
-    description: "For active SMEs ready to promote and connect.",
+    price: "Free",
+    period: "during early access",
+    description: "All Growth features unlocked while we test the market with real SMEs.",
     features: [
       "All 6 AI agents",
       "Unlimited marketing content",
       "Priority matching",
       "Funding readiness tools",
       "Full CRM & automation",
+      PRICING_GROWTH_EARLY_ACCESS,
     ],
-    cta: "Start trial",
+    cta: "Join free",
     highlighted: true,
   },
   {
@@ -59,10 +61,7 @@ export function PricingTeaser() {
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             Plans that grow with your business
           </h2>
-          <p className="mt-4 text-lg text-muted">
-            Start free, upgrade when you&apos;re ready. Subscriptions coming in
-            a later phase.
-          </p>
+          <p className="mt-4 text-lg text-muted">{PRICING_SUBTITLE}</p>
         </div>
 
         <div className="mt-14 grid gap-6 lg:grid-cols-3">
@@ -106,7 +105,11 @@ export function PricingTeaser() {
                 ))}
               </ul>
               <Link
-                href="/signup"
+                href={
+                  plan.name === "Enterprise"
+                    ? "/contact?plan=enterprise&source=pricing"
+                    : "/signup"
+                }
                 className={`mt-8 block rounded-full py-3 text-center text-sm font-semibold transition ${
                   plan.highlighted
                     ? "bg-white text-primary hover:bg-white/90"

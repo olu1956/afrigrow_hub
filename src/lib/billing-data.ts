@@ -10,12 +10,25 @@ export type Plan = {
   highlighted: boolean;
 };
 
+export type InvoiceStatus = "paid" | "pending" | "failed" | "draft" | "overdue" | "cancelled";
+
+export type QuotationStatus = "draft" | "sent" | "accepted" | "declined" | "expired";
+
 export type Invoice = {
   id: string;
   date: string;
   description: string;
   amount: string;
-  status: "paid" | "pending" | "failed";
+  status: InvoiceStatus;
+};
+
+export type Quotation = {
+  id: string;
+  date: string;
+  clientName: string;
+  description: string;
+  amount: string;
+  status: QuotationStatus;
 };
 
 export type UsageLimit = {
@@ -42,7 +55,7 @@ export const plans: Plan[] = [
   {
     id: "growth",
     name: "Growth",
-    price: "£29",
+    price: "£10",
     period: "/ month",
     description: "For active SMEs ready to promote and connect.",
     features: [
@@ -71,33 +84,60 @@ export const plans: Plan[] = [
   },
 ];
 
+export const quotations: Quotation[] = [
+  {
+    id: "QUO-2026-A1B2C3",
+    date: "10 Jun 2026",
+    clientName: "Corporate Wear Solutions",
+    description: "Bulk uniform fabric quote",
+    amount: "£4,850.00",
+    status: "sent",
+  },
+  {
+    id: "QUO-2026-D4E5F6",
+    date: "28 May 2026",
+    clientName: "Elegance Events NG",
+    description: "Wedding décor package + 2 more",
+    amount: "£1,240.00",
+    status: "accepted",
+  },
+  {
+    id: "QUO-2026-G7H8I9",
+    date: "15 May 2026",
+    clientName: "Diaspora Gift Co.",
+    description: "Wholesale adire bundle",
+    amount: "£920.00",
+    status: "declined",
+  },
+];
+
 export const invoices: Invoice[] = [
   {
     id: "INV-2026-004",
     date: "1 Jun 2026",
     description: "Growth plan — June 2026",
-    amount: "£29.00",
+    amount: "£10.00",
     status: "paid",
   },
   {
     id: "INV-2026-003",
     date: "1 May 2026",
     description: "Growth plan — May 2026",
-    amount: "£29.00",
+    amount: "£10.00",
     status: "paid",
   },
   {
     id: "INV-2026-002",
     date: "1 Apr 2026",
     description: "Growth plan — April 2026",
-    amount: "£29.00",
+    amount: "£10.00",
     status: "paid",
   },
   {
     id: "INV-2026-001",
     date: "15 Mar 2026",
     description: "Growth plan — trial conversion",
-    amount: "£29.00",
+    amount: "£10.00",
     status: "paid",
   },
 ];

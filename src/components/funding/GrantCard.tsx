@@ -1,15 +1,15 @@
 "use client";
 
-import { Calendar, MapPin, Sparkles } from "lucide-react";
-import type { GrantOpportunity } from "@/lib/funding-data";
+import { Calendar, ExternalLink, MapPin, Sparkles } from "lucide-react";
+import type { MatchedGrantOpportunity } from "@/lib/funding-data";
 import { typeLabels, typeStyles } from "@/lib/funding-data";
 
 type GrantCardProps = {
-  grant: GrantOpportunity;
-  onApply: (grant: GrantOpportunity) => void;
+  grant: MatchedGrantOpportunity;
+  onPrepare: (grant: MatchedGrantOpportunity) => void;
 };
 
-export function GrantCard({ grant, onApply }: GrantCardProps) {
+export function GrantCard({ grant, onPrepare }: GrantCardProps) {
   return (
     <article className="flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md hover:shadow-primary/5">
       <div className="flex items-start justify-between gap-3">
@@ -27,7 +27,7 @@ export function GrantCard({ grant, onApply }: GrantCardProps) {
             <Sparkles className="h-3 w-3" />
             {grant.matchScore}%
           </div>
-          <p className="mt-1 text-[10px] text-muted">eligibility</p>
+          <p className="mt-1 text-[10px] text-muted">match score</p>
         </div>
       </div>
 
@@ -60,13 +60,24 @@ export function GrantCard({ grant, onApply }: GrantCardProps) {
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => onApply(grant)}
-        className="mt-5 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark"
-      >
-        Prepare application
-      </button>
+      <div className="mt-5 space-y-2">
+        <a
+          href={grant.applyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark"
+        >
+          Apply on provider site
+          <ExternalLink className="h-4 w-4" />
+        </a>
+        <button
+          type="button"
+          onClick={() => onPrepare(grant)}
+          className="w-full rounded-xl border border-border bg-background py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/30 hover:bg-primary-light/30"
+        >
+          Prepare with AfriGrow
+        </button>
+      </div>
     </article>
   );
 }

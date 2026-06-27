@@ -3,15 +3,16 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 
 export const metadata: Metadata = {
-  title: "Sign up — AfriGrow Hub",
-  description: "Create your AfriGrow Hub account and start growing your business.",
+  title: "Sign up free — Early Access",
+  description:
+    "Create your free AfriGrow Hub account during early access. No credit card required.",
 };
 
 export default function SignUpPage() {
   return (
     <AuthLayout
-      title="Join AfriGrow Hub"
-      subtitle="Create your free business account and start growing with AI agents."
+      title="Join free — early access"
+      subtitle="Create your business account in minutes. No credit card required during the test period."
     >
       <SignUpForm />
     </AuthLayout>

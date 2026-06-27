@@ -1,78 +1,326 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, CreditCard, Download, Sparkles } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, CreditCard, Download, Loader2, Sparkles } from "lucide-react";
+import { CreateInvoiceForm } from "@/components/billing/CreateInvoiceForm";
+import { CreateQuotationForm } from "@/components/billing/CreateQuotationForm";
+import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
+import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
-import { mockBusiness } from "@/lib/dashboard-nav";
+import { getInvoicesAction } from "@/lib/auth/billing-actions";
+import { getQuotationsAction } from "@/lib/auth/quotation-actions";
+import {
+  getSubscriptionAction,
+  updateSubscriptionPlanAction,
+} from "@/lib/auth/subscription-actions";
+import { subscriptionStatusLabel } from "@/lib/billing/subscription-mapper";
+import { useDashboardBusiness } from "@/lib/use-dashboard-business";
 import {
   getPlanById,
-  getUsageForPlan,
-  invoices,
-  nextBillingDate,
   planIdFromName,
   plans,
+  type Invoice,
   type PlanId,
+  type Quotation,
 } from "@/lib/billing-data";
+import { buildUsageForPlan } from "@/lib/billing/build-usage-limits";
+import {
+  getDashboardStatsAction,
+  type DashboardStats,
+} from "@/lib/auth/dashboard-stats-actions";
+import {
+  BILLING_PAGE_NOTE,
+  NO_PAYMENT_METHOD_MESSAGE,
+} from "@/lib/product-messaging";
 
-const statusStyles = {
+type DisplayInvoice = Invoice & {
+  recordId?: string;
+  source?: "live" | "demo";
+};
+
+type DisplayQuotation = Quotation & {
+  recordId?: string;
+  source?: "live" | "demo";
+};
+
+const invoiceStatusStyles = {
   paid: "bg-primary-light text-primary",
   pending: "bg-accent-light text-accent",
   failed: "bg-red-50 text-red-700",
+  draft: "bg-background text-muted border border-border",
+  overdue: "bg-red-50 text-red-700",
+  cancelled: "bg-background text-muted border border-border",
+} as const;
+
+const quotationStatusStyles = {
+  draft: "bg-background text-muted border border-border",
+  sent: "bg-accent-light text-accent",
+  accepted: "bg-primary-light text-primary",
+  declined: "bg-red-50 text-red-700",
+  expired: "bg-background text-muted border border-border",
 } as const;
 
 export function BillingDashboard() {
-  const { session, hydrated, setSession } = useSession();
-  const business = hydrated ? session : mockBusiness;
-  const currentPlanId = planIdFromName(business.plan);
-  const currentPlan = getPlanById(currentPlanId);
-  const usage = getUsageForPlan(currentPlanId);
+  const { hydrated, authEnabled, setSession, session } = useSession();
+  const { business } = useDashboardBusiness();
+  const billingInitialized = useRef(false);
 
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [setupWarning, setSetupWarning] = useState<string | null>(null);
+  const [subscriptionSetupWarning, setSubscriptionSetupWarning] = useState<string | null>(null);
+  const [quotationSetupWarning, setQuotationSetupWarning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingInvoices, setLoadingInvoices] = useState(authEnabled);
+  const [loadingQuotations, setLoadingQuotations] = useState(authEnabled);
+  const [loadingSubscription, setLoadingSubscription] = useState(authEnabled);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [subscriptionPlanId, setSubscriptionPlanId] = useState<PlanId | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<DisplayInvoice[]>([]);
+  const [quotations, setQuotations] = useState<DisplayQuotation[]>([]);
+  const [usageStats, setUsageStats] = useState<DashboardStats | null>(null);
 
-  const renewalLabel = useMemo(() => nextBillingDate(), []);
+  const currentPlanId = subscriptionPlanId ?? planIdFromName(business.plan);
+  const currentPlan = getPlanById(currentPlanId);
+  const usage = useMemo(
+    () =>
+      buildUsageForPlan(
+        currentPlanId,
+        usageStats ?? {
+          profileStrength: null,
+          crmContacts: 0,
+          crmFollowUpsDue: 0,
+          marketingCampaigns: 0,
+          matchEnquiries: 0,
+          fundingReadiness: null,
+          invoicesCreated: 0,
+          quotationsCreated: 0,
+        },
+      ),
+    [currentPlanId, usageStats],
+  );
 
-  function handlePlanChange(planId: PlanId) {
-    if (planId === currentPlanId) return;
+  const loadSubscription = useCallback(async () => {
+    if (!authEnabled) {
+      setLoadingSubscription(false);
+      return;
+    }
+
+    setLoadingSubscription(true);
+
+    try {
+      const result = await getSubscriptionAction();
+      if (result.warning) {
+        setSubscriptionSetupWarning(result.warning);
+      }
+
+      if (!result.ok) {
+        setError(result.error ?? "Could not load subscription.");
+        return;
+      }
+
+      if (result.subscription) {
+        setSubscriptionPlanId(result.subscription.planId);
+        setSubscriptionStatus(subscriptionStatusLabel(result.subscription.status));
+
+        if (result.subscription.planName !== session.plan) {
+          setSession({
+            owner: session.owner,
+            name: session.name,
+            email: session.email,
+            plan: result.subscription.planName,
+            location: session.location,
+            country: session.country,
+            role: session.role,
+            businessType: session.businessType,
+          });
+        }
+      }
+    } finally {
+      setLoadingSubscription(false);
+    }
+  }, [authEnabled, session, setSession]);
+
+  const loadInvoices = useCallback(async () => {
+    if (!authEnabled) {
+      setLoadingInvoices(false);
+      return;
+    }
+
+    setLoadingInvoices(true);
+    setError(null);
+
+    const result = await getInvoicesAction();
+    if (result.warning) {
+      setSetupWarning(result.warning);
+    }
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not load invoices.");
+      setLoadingInvoices(false);
+      return;
+    }
+
+    setInvoices(result.invoices ?? []);
+    setLoadingInvoices(false);
+  }, [authEnabled]);
+
+  const loadQuotations = useCallback(async () => {
+    if (!authEnabled) {
+      setLoadingQuotations(false);
+      return;
+    }
+
+    setLoadingQuotations(true);
+
+    const result = await getQuotationsAction();
+    if (result.warning) {
+      setQuotationSetupWarning(result.warning);
+    }
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not load quotations.");
+      setLoadingQuotations(false);
+      return;
+    }
+
+    setQuotations(result.quotations ?? []);
+    setLoadingQuotations(false);
+  }, [authEnabled]);
+
+  const loadUsageStats = useCallback(async () => {
+    if (!authEnabled) return;
+
+    const result = await getDashboardStatsAction();
+    if (result.ok && result.stats) {
+      setUsageStats(result.stats);
+    }
+  }, [authEnabled]);
+
+  useEffect(() => {
+    if (!hydrated || billingInitialized.current) return;
+    billingInitialized.current = true;
+    void loadSubscription();
+    void loadInvoices();
+    void loadQuotations();
+    void loadUsageStats();
+  }, [hydrated, loadSubscription, loadInvoices, loadQuotations, loadUsageStats]);
+
+  async function handlePlanChange(planId: PlanId) {
+    if (planId === currentPlanId || savingPlan) return;
+
+    if (!authEnabled || subscriptionSetupWarning) {
+      const plan = getPlanById(planId);
+      setSelectedPlan(planId);
+      setSession({ ...business, plan: plan.name });
+      setNotice(`Plan updated to ${plan.name}. ${BILLING_PAGE_NOTE}`);
+      return;
+    }
+
+    setSavingPlan(true);
+    setError(null);
+
+    const result = await updateSubscriptionPlanAction({ planId });
+
+    setSavingPlan(false);
+
+    if (!result.ok || !result.subscription) {
+      setError(result.error ?? "Could not update subscription.");
+      return;
+    }
+
     const plan = getPlanById(planId);
+    setSubscriptionPlanId(result.subscription.planId);
+    setSubscriptionStatus(subscriptionStatusLabel(result.subscription.status));
     setSelectedPlan(planId);
-    setSession({ ...business, plan: plan.name });
-    setNotice(`Plan updated to ${plan.name} (preview only — no payment processed).`);
+    setSession({
+      owner: business.owner,
+      name: business.name,
+      email: business.email,
+      plan: plan.name,
+      location: business.location,
+      country: business.country,
+      role: business.role,
+      businessType: business.businessType,
+    });
+    setNotice(`Plan updated to ${plan.name}. ${BILLING_PAGE_NOTE}`);
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        title="Billing"
-        description="Manage your subscription, view invoices, and track plan usage."
-      />
-
-      {notice && (
-        <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm text-primary">
-          {notice}
+    <DashboardPageLayout
+      title="Billing"
+      description="Manage your subscription, create client invoices, and track plan usage."
+      heroExtra={
+        <div className="space-y-3">
+          <div className="rounded-xl border border-primary/15 bg-primary-light/40 px-4 py-3 text-sm text-foreground">
+            {BILLING_PAGE_NOTE}
+          </div>
+          {notice ? (
+            <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm text-primary">
+              {notice}
+            </div>
+          ) : null}
+          {subscriptionSetupWarning ? (
+            <div className="rounded-xl border border-accent/30 bg-accent-light/40 px-4 py-3 text-sm text-foreground">
+              <strong className="font-semibold">Subscriptions setup needed.</strong>{" "}
+              {subscriptionSetupWarning}
+            </div>
+          ) : null}
+          {setupWarning ? (
+            <div className="rounded-xl border border-accent/30 bg-accent-light/40 px-4 py-3 text-sm text-foreground">
+              <strong className="font-semibold">Invoices setup needed.</strong> {setupWarning}
+            </div>
+          ) : null}
+          {quotationSetupWarning ? (
+            <div className="rounded-xl border border-accent/30 bg-accent-light/40 px-4 py-3 text-sm text-foreground">
+              <strong className="font-semibold">Quotations setup needed.</strong>{" "}
+              {quotationSetupWarning}
+            </div>
+          ) : null}
+          {error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
         </div>
-      )}
-
+      }
+    >
       <div className="grid gap-6 lg:grid-cols-5">
         <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-dark to-primary p-6 text-white lg:col-span-2">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-accent" />
             <span className="text-sm font-semibold text-white/80">Current plan</span>
+            {subscriptionStatus ? (
+              <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
+                {subscriptionStatus}
+              </span>
+            ) : null}
           </div>
+          {loadingSubscription && subscriptionPlanId === null ? (
+            <div className="mt-6 flex items-center gap-2 text-sm text-white/80">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading subscription…
+            </div>
+          ) : (
+            <>
           <h2 className="mt-3 text-2xl font-bold">{currentPlan.name}</h2>
           <div className="mt-2 flex items-baseline gap-1">
             <span className="text-3xl font-bold">{currentPlan.price}</span>
             <span className="text-sm text-white/70">{currentPlan.period}</span>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-white/85">{currentPlan.description}</p>
-          {currentPlanId !== "starter" && currentPlanId !== "enterprise" && (
-            <p className="mt-4 text-xs text-white/70">Next billing date: {renewalLabel}</p>
+          <p className="mt-4 text-xs text-white/70">
+            Card billing not active — no charges until payments go live.
+          </p>
+            </>
           )}
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm lg:col-span-3">
+        <section className={`${dashboardCardClass} lg:col-span-3`}>
           <h2 className="font-semibold text-foreground">Usage this period</h2>
+          <p className="mt-1 text-xs text-muted">Counts from your live account activity.</p>
           <ul className="mt-5 space-y-4">
             {usage.map((item) => {
               const percent =
@@ -154,91 +402,203 @@ export function BillingDashboard() {
                     </li>
                   ))}
                 </ul>
+                {plan.id === "enterprise" ? (
+                  <Link
+                    href="/contact?plan=enterprise&source=billing"
+                    className={`mt-6 block rounded-xl py-2.5 text-center text-sm font-semibold transition ${
+                      plan.highlighted
+                        ? "bg-white text-primary hover:bg-white/90"
+                        : "bg-primary text-white hover:bg-primary-dark"
+                    }`}
+                  >
+                    Contact sales
+                  </Link>
+                ) : (
                 <button
                   type="button"
-                  disabled={isCurrent}
-                  onClick={() => handlePlanChange(plan.id)}
+                  disabled={isCurrent || savingPlan || loadingSubscription}
+                  onClick={() => void handlePlanChange(plan.id)}
                   className={`mt-6 rounded-xl py-2.5 text-sm font-semibold transition disabled:cursor-default disabled:opacity-60 ${
                     plan.highlighted
                       ? "bg-white text-primary hover:bg-white/90 disabled:bg-white/80"
                       : "bg-primary text-white hover:bg-primary-dark disabled:bg-primary/60"
                   } ${isSelected ? "ring-2 ring-accent ring-offset-2" : ""}`}
                 >
-                  {isCurrent
+                  {savingPlan && isSelected
+                    ? "Saving…"
+                    : isCurrent
                     ? "Current plan"
-                    : plan.id === "enterprise"
-                      ? "Contact sales"
-                      : `Switch to ${plan.name}`}
+                    : `Switch to ${plan.name}`}
                 </button>
+                )}
               </div>
             );
           })}
         </div>
       </section>
 
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CreateInvoiceForm
+          disabled={!authEnabled || Boolean(setupWarning)}
+          onSuccess={(message) => {
+            setNotice(message);
+            setError(null);
+            void loadInvoices();
+            void loadUsageStats();
+          }}
+          onError={(message) => setError(message)}
+        />
+
+        <CreateQuotationForm
+          disabled={!authEnabled || Boolean(quotationSetupWarning)}
+          onSuccess={(message) => {
+            setNotice(message);
+            setError(null);
+            void loadQuotations();
+            void loadUsageStats();
+          }}
+          onError={(message) => setError(message)}
+        />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-5">
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm lg:col-span-2">
+        <section className={`${dashboardCardClass} lg:col-span-2`}>
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-primary" />
             <h2 className="font-semibold text-foreground">Payment method</h2>
           </div>
-          <div className="mt-5 rounded-xl border border-border bg-background p-4">
-            <p className="font-medium text-foreground">Visa ending in 4242</p>
-            <p className="mt-1 text-sm text-muted">Expires 08/2028</p>
+          <div className="mt-5 rounded-xl border border-dashed border-border bg-background p-4">
+            <p className="font-medium text-foreground">No card on file</p>
+            <p className="mt-1 text-sm text-muted">{NO_PAYMENT_METHOD_MESSAGE}</p>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              setNotice("Payment method updates will be available when billing goes live.")
-            }
-            className="mt-4 text-sm font-semibold text-primary hover:underline"
-          >
-            Update payment method
-          </button>
+          <p className="mt-4 text-xs text-muted">
+            You can switch plans above without entering payment details.
+          </p>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm lg:col-span-3">
-          <h2 className="font-semibold text-foreground">Invoice history</h2>
+        <section className={`${dashboardCardClass} lg:col-span-3`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-semibold text-foreground">Invoice history</h2>
+            {invoices.some((invoice) => invoice.source === "live") ? (
+              <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                Live data
+              </span>
+            ) : null}
+          </div>
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left text-sm">
+            {loadingInvoices ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              </div>
+            ) : invoices.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-background px-4 py-10 text-center">
+                <p className="font-medium text-foreground">No invoices yet</p>
+                <p className="mt-1 text-sm text-muted">
+                  Create your first client invoice using the form above.
+                </p>
+              </div>
+            ) : (
+              <table className="w-full min-w-[480px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-muted">
+                    <th className="pb-3 pr-4 font-medium">Invoice</th>
+                    <th className="pb-3 pr-4 font-medium">Date</th>
+                    <th className="pb-3 pr-4 font-medium">Description</th>
+                    <th className="pb-3 pr-4 font-medium">Amount</th>
+                    <th className="pb-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.recordId ?? invoice.id} className="border-b border-border/60 last:border-0">
+                      <td className="py-3 pr-4 font-medium text-foreground">{invoice.id}</td>
+                      <td className="py-3 pr-4 text-muted">{invoice.date}</td>
+                      <td className="py-3 pr-4 text-foreground">{invoice.description}</td>
+                      <td className="py-3 pr-4 font-medium text-foreground">{invoice.amount}</td>
+                      <td className="py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${invoiceStatusStyles[invoice.status]}`}
+                        >
+                          {invoice.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          {invoices.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setNotice("Invoice downloads will be available when billing goes live.")}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+          >
+            <Download className="h-4 w-4" />
+            Download all invoices
+          </button>
+          ) : null}
+        </section>
+      </div>
+
+      <section className={dashboardCardClass}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-foreground">Quotation history</h2>
+          {quotations.some((quotation) => quotation.source === "live") ? (
+            <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
+              Live data
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          {loadingQuotations ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+            </div>
+          ) : quotations.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-background px-4 py-10 text-center">
+              <p className="font-medium text-foreground">No quotations yet</p>
+              <p className="mt-1 text-sm text-muted">
+                Create your first quotation using the form above.
+              </p>
+            </div>
+          ) : (
+            <table className="w-full min-w-[520px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted">
-                  <th className="pb-3 pr-4 font-medium">Invoice</th>
+                  <th className="pb-3 pr-4 font-medium">Quotation</th>
                   <th className="pb-3 pr-4 font-medium">Date</th>
+                  <th className="pb-3 pr-4 font-medium">Client</th>
                   <th className="pb-3 pr-4 font-medium">Description</th>
                   <th className="pb-3 pr-4 font-medium">Amount</th>
                   <th className="pb-3 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="border-b border-border/60 last:border-0">
-                    <td className="py-3 pr-4 font-medium text-foreground">{invoice.id}</td>
-                    <td className="py-3 pr-4 text-muted">{invoice.date}</td>
-                    <td className="py-3 pr-4 text-foreground">{invoice.description}</td>
-                    <td className="py-3 pr-4 font-medium text-foreground">{invoice.amount}</td>
+                {quotations.map((quotation) => (
+                  <tr
+                    key={quotation.recordId ?? quotation.id}
+                    className="border-b border-border/60 last:border-0"
+                  >
+                    <td className="py-3 pr-4 font-medium text-foreground">{quotation.id}</td>
+                    <td className="py-3 pr-4 text-muted">{quotation.date}</td>
+                    <td className="py-3 pr-4 text-foreground">{quotation.clientName}</td>
+                    <td className="py-3 pr-4 text-foreground">{quotation.description}</td>
+                    <td className="py-3 pr-4 font-medium text-foreground">{quotation.amount}</td>
                     <td className="py-3">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusStyles[invoice.status]}`}
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${quotationStatusStyles[quotation.status]}`}
                       >
-                        {invoice.status}
+                        {quotation.status}
                       </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-          <button
-            type="button"
-            onClick={() => setNotice("Invoice downloads will be available in a later phase.")}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
-          >
-            <Download className="h-4 w-4" />
-            Download all invoices
-          </button>
-        </section>
-      </div>
-    </div>
+          )}
+        </div>
+      </section>
+    </DashboardPageLayout>
   );
 }

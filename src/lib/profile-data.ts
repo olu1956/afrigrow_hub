@@ -18,6 +18,8 @@ export type BusinessProfile = {
   instagram: string;
   facebook: string;
   linkedin: string;
+  logoUrl: string;
+  profileScore?: number;
 };
 
 const PROFILE_STORAGE_KEY = "afrigrow_profile_preview";
@@ -63,6 +65,7 @@ export function buildDefaultProfile(session: SessionPreview): BusinessProfile {
     instagram: "",
     facebook: "",
     linkedin: "",
+    logoUrl: "",
   };
 }
 
@@ -143,6 +146,7 @@ export function calculateProfileStrength(profile: BusinessProfile): number {
     profile.services.length >= 2,
     profile.whatsapp.trim().length > 0,
     profile.website.trim().length > 0,
+    profile.logoUrl.trim().length > 0,
     profile.instagram.trim().length > 0 || profile.facebook.trim().length > 0,
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);

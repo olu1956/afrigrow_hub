@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
+  ImagePlus,
   Loader2,
   Plus,
   Save,
@@ -10,10 +12,21 @@ import {
   Trash2,
   Wand2,
 } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
+import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
 import { ProfilePreview } from "@/components/profile/ProfilePreview";
 import { ProfileStrengthMeter } from "@/components/profile/ProfileStrengthMeter";
+import {
+  getBusinessProfileAction,
+  saveBusinessProfileAction,
+  updateBusinessLogoAction,
+} from "@/lib/auth/business-actions";
+import { getMyDirectoryStatusAction } from "@/lib/auth/directory-actions";
+import { DIRECTORY_MIN_PROFILE_SCORE } from "@/lib/directory/constants";
+import { uploadBusinessLogoToStorage } from "@/lib/business/logo-upload";
+import { createClient } from "@/lib/supabase/client";
+import { getSessionDataAction } from "@/lib/auth/profile-actions";
 import {
   buildAiBioSuggestion,
   buildAiServiceSuggestions,
@@ -26,6 +39,8 @@ import {
   saveProfilePreview,
   type BusinessProfile,
 } from "@/lib/profile-data";
+import { CountrySelect } from "@/components/dashboard/CountrySelect";
+import { normalizeCountrySelectValue } from "@/lib/countries";
 import { defaultSession } from "@/lib/session-preview";
 
 function Field({
@@ -47,22 +62,66 @@ const inputClass =
   "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export function ProfileAgent() {
-  const { session, hydrated, setSession } = useSession();
+  const { session, hydrated, setSession, authEnabled } = useSession();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<BusinessProfile>(() =>
     buildDefaultProfile(defaultSession()),
   );
   const [newService, setNewService] = useState("");
   const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
   const [initialized, setInitialized] = useState(false);
+  const [savedStrength, setSavedStrength] = useState<number | null>(null);
+  const [listedInDirectory, setListedInDirectory] = useState(false);
+  const [directoryNotice, setDirectoryNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (hydrated && !initialized) {
-      setProfile(loadProfilePreview(session));
+    if (!hydrated || initialized) return;
+
+    async function loadProfile() {
+      setLoadingProfile(true);
+      setError(null);
+
+      if (authEnabled) {
+        const [result, directoryStatus] = await Promise.all([
+          getBusinessProfileAction(),
+          getMyDirectoryStatusAction(),
+        ]);
+
+        if (result.ok && result.profile) {
+          setProfile({
+            ...result.profile,
+            country: normalizeCountrySelectValue(result.profile.country),
+          });
+          setSavedStrength(result.profile.profileScore ?? null);
+        } else if (result.error) {
+          setError(result.error);
+          setProfile(buildDefaultProfile(session));
+        } else {
+          setProfile(buildDefaultProfile(session));
+        }
+
+        if (directoryStatus.ok) {
+          setListedInDirectory(directoryStatus.listed);
+          if (directoryStatus.profileScore !== null) {
+            setSavedStrength((current) => current ?? directoryStatus.profileScore);
+          }
+        }
+      } else {
+        setProfile(loadProfilePreview(session));
+      }
+
+      setLoadingProfile(false);
       setInitialized(true);
     }
-  }, [hydrated, initialized, session]);
+
+    loadProfile();
+  }, [authEnabled, hydrated, initialized, session]);
 
   const strength = useMemo(() => calculateProfileStrength(profile), [profile]);
 
@@ -98,8 +157,107 @@ export function ProfileAgent() {
     );
   }
 
-  async function handleSave() {
+  async function handleLogoUpload(file: File) {
+    if (!authEnabled) {
+      setError("Logo upload requires Supabase to be configured.");
+      return;
+    }
+
+    setUploadingLogo(true);
+    setError(null);
     setSaved(false);
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("You must be logged in.");
+      setUploadingLogo(false);
+      return;
+    }
+
+    const upload = await uploadBusinessLogoToStorage(file, user.id);
+    if (!upload.ok) {
+      setError(upload.error);
+      setUploadingLogo(false);
+      return;
+    }
+
+    const result = await updateBusinessLogoAction(upload.publicUrl);
+
+    if (!result.ok) {
+      setError(result.error ?? "Unable to upload logo.");
+      setUploadingLogo(false);
+      return;
+    }
+
+    if (result.logoUrl) {
+      update("logoUrl", result.logoUrl);
+    }
+    if (result.profileScore !== undefined) {
+      setProfile((p) => ({ ...p, profileScore: result.profileScore }));
+    }
+
+    setUploadingLogo(false);
+    setSaved(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+
+    if (authEnabled) {
+      const result = await saveBusinessProfileAction(profile);
+
+      if (!result.ok) {
+        setError(result.error ?? "Unable to save profile.");
+        setSaving(false);
+        return;
+      }
+
+      if (result.profile) {
+        setProfile(result.profile);
+      }
+
+      const newStrength = calculateProfileStrength(result.profile ?? profile);
+      const previousSaved = savedStrength ?? 0;
+      setSavedStrength(newStrength);
+      setListedInDirectory(newStrength >= DIRECTORY_MIN_PROFILE_SCORE);
+
+      if (
+        newStrength >= DIRECTORY_MIN_PROFILE_SCORE &&
+        previousSaved < DIRECTORY_MIN_PROFILE_SCORE
+      ) {
+        setDirectoryNotice(
+          "Your profile is now live in the Business Directory — other members can discover you.",
+        );
+      } else if (newStrength >= DIRECTORY_MIN_PROFILE_SCORE) {
+        setDirectoryNotice(null);
+      }
+
+      const refreshedSession = await getSessionDataAction();
+      if (refreshedSession) {
+        setSession(refreshedSession.session);
+      } else {
+        const location = formatProfileLocation(profile);
+        setSession({
+          owner: session.owner,
+          name: profile.businessName.trim() || session.name,
+          email: profile.email.trim() || session.email,
+          country: profile.country.trim() || session.country,
+          businessType: profile.category,
+          ...(location ? { location } : {}),
+        });
+      }
+
+      setSaved(true);
+      setSaving(false);
+      return;
+    }
+
     await new Promise((r) => setTimeout(r, 600));
     saveProfilePreview(profile);
     const location = formatProfileLocation(profile);
@@ -107,35 +265,64 @@ export function ProfileAgent() {
       owner: session.owner,
       name: profile.businessName.trim() || session.name,
       email: profile.email.trim() || session.email,
+      country: profile.country.trim() || session.country,
       businessType: profile.category,
       ...(location ? { location } : {}),
     });
     setSaved(true);
+    setSaving(false);
+  }
+
+  if (loadingProfile) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        title="Business Profile Agent"
-        description="Build a professional profile that helps buyers, partners, and funders discover and trust your business."
-        action={
-          <button
-            type="button"
-            onClick={handleSave}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark"
-          >
+    <DashboardPageLayout
+      title="Business Profile Agent"
+      description="Build a professional profile that helps buyers, partners, and funders discover and trust your business."
+      action={
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-60"
+        >
+          {saving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
             <Save className="h-4 w-4" />
-            Save profile
-          </button>
-        }
-      />
-
-      {saved && (
-        <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm font-medium text-primary">
-          Profile saved (preview — backend sync in a later phase).
-        </div>
-      )}
-
+          )}
+          Save profile
+        </button>
+      }
+      heroExtra={
+        error || saved || directoryNotice ? (
+          <>
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                {error}
+              </div>
+            )}
+            {saved && (
+              <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm font-medium text-primary">
+                Profile saved{authEnabled ? " to your business account" : " (preview mode)"}.
+                {directoryNotice ? ` ${directoryNotice}` : ""}
+              </div>
+            )}
+            {!saved && directoryNotice ? (
+              <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm font-medium text-primary">
+                {directoryNotice}
+              </div>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    >
       <div className="flex gap-2 lg:hidden">
         {(["edit", "preview"] as const).map((tab) => (
           <button
@@ -157,11 +344,57 @@ export function ProfileAgent() {
         <div
           className={`space-y-6 lg:col-span-3 ${activeTab === "preview" ? "hidden lg:block" : ""}`}
         >
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <div className="mb-5 flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" />
               <h2 className="font-semibold text-foreground">Basic information</h2>
             </div>
+
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-primary-light">
+                {profile.logoUrl ? (
+                  <Image
+                    src={profile.logoUrl}
+                    alt={`${profile.businessName} logo`}
+                    width={80}
+                    height={80}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <span className="text-2xl font-bold text-primary">{session.initials}</span>
+                )}
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Business logo</p>
+                <p className="text-xs text-muted">JPEG, PNG, WebP or GIF · max 2 MB</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleLogoUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={uploadingLogo}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary-light px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-white disabled:opacity-60"
+                >
+                  {uploadingLogo ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="h-3.5 w-3.5" />
+                  )}
+                  {profile.logoUrl ? "Change logo" : "Upload logo"}
+                </button>
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Business name">
                 <input
@@ -218,7 +451,7 @@ export function ProfileAgent() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <h2 className="mb-5 font-semibold text-foreground">Location</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="City">
@@ -229,10 +462,10 @@ export function ProfileAgent() {
                 />
               </Field>
               <Field label="Country">
-                <input
+                <CountrySelect
+                  value={normalizeCountrySelectValue(profile.country)}
+                  onChange={(value) => update("country", value)}
                   className={inputClass}
-                  value={profile.country}
-                  onChange={(e) => update("country", e.target.value)}
                 />
               </Field>
               <div className="sm:col-span-2">
@@ -247,7 +480,7 @@ export function ProfileAgent() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <h2 className="mb-5 font-semibold text-foreground">Contact</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Phone">
@@ -282,7 +515,7 @@ export function ProfileAgent() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-foreground">About your business</h2>
               <button
@@ -311,7 +544,7 @@ export function ProfileAgent() {
             </p>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-foreground">Services</h2>
               <button
@@ -365,7 +598,7 @@ export function ProfileAgent() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <section className={dashboardCardClass}>
             <h2 className="mb-5 font-semibold text-foreground">Social links</h2>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Instagram">
@@ -397,7 +630,13 @@ export function ProfileAgent() {
           className={`space-y-5 lg:col-span-2 ${activeTab === "edit" ? "hidden lg:block" : ""}`}
         >
           <div className="lg:sticky lg:top-24 lg:space-y-5">
-            <ProfileStrengthMeter strength={strength} profile={profile} />
+            <ProfileStrengthMeter
+              strength={strength}
+              profile={profile}
+              savedStrength={savedStrength}
+              listed={listedInDirectory}
+              onSaveProfile={() => void handleSave()}
+            />
             <div>
               <p className="mb-3 text-sm font-semibold text-foreground">Live preview</p>
               <ProfilePreview profile={profile} initials={session.initials} />
@@ -405,6 +644,6 @@ export function ProfileAgent() {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardPageLayout>
   );
 }

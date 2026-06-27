@@ -10,11 +10,16 @@ import {
 } from "lucide-react";
 import { JoinNowButton } from "@/components/landing/JoinNowButton";
 import { SitePageLayout } from "@/components/landing/SitePageLayout";
+import {
+  FREE_LAUNCH_BADGE,
+  FREE_LAUNCH_CTA_LINE,
+  FREE_LAUNCH_JOIN_LINE,
+} from "@/lib/product-messaging";
 
 export const metadata: Metadata = {
-  title: "Join Now — AfriGrow Hub",
+  title: "Join Free — Early Access",
   description:
-    "Join AfriGrow Hub free and get AI tools for profiles, marketing, matching, funding, and customer follow-up.",
+    "Join AfriGrow Hub free during early access. AI tools for profiles, marketing, matching, funding, and CRM — no credit card required.",
 };
 
 const benefits = [
@@ -41,12 +46,13 @@ const benefits = [
 ];
 
 const included = [
-  "Free Starter plan — no credit card required",
-  "Business profile & basic directory listing",
+  "Free during early access — no credit card required",
+  "Business profile & directory listing when you reach 40% strength",
   "Access to AI agents for growth tasks",
   "Matching marketplace enquiries",
   "CRM contacts & follow-up tools",
-  "Upgrade anytime to unlock all 6 agents",
+  "Business Academy guides",
+  "Upgrade paths ready when paid plans launch",
 ];
 
 export default function JoinPage() {
@@ -55,14 +61,13 @@ export default function JoinPage() {
       <section className="border-b border-border bg-primary-light/40 px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-            For African SMEs
+            {FREE_LAUNCH_BADGE}
           </p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Join AfriGrow Hub and grow your business
+            Join AfriGrow Hub — free early access
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted">
-            Whether you&apos;re a trader, retailer, manufacturer, or service provider —
-            join thousands of businesses using AI to promote, connect, and scale.
+            {FREE_LAUNCH_JOIN_LINE}
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <JoinNowButton size="lg" href="/signup" />
@@ -114,7 +119,7 @@ export default function JoinPage() {
           <div>
             <h2 className="text-2xl font-bold text-foreground">What&apos;s included</h2>
             <p className="mt-3 text-muted">
-              Start free today. Upgrade when your business is ready for more.
+              Start free today. {FREE_LAUNCH_CTA_LINE}
             </p>
             <ul className="mt-8 space-y-4">
               {included.map((item) => (

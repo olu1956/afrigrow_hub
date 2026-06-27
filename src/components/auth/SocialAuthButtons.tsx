@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/components/providers/SessionProvider";
 import { AuthButton } from "./AuthButton";
 
 function GoogleIcon() {
@@ -26,18 +29,48 @@ function GoogleIcon() {
 }
 
 export function SocialAuthButtons({ mode }: { mode: "login" | "signup" }) {
+  const { authEnabled } = useSession();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const label = mode === "login" ? "Continue with Google" : "Sign up with Google";
 
+  async function handleGoogle() {
+    if (!authEnabled) return;
+
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (oauthError) {
+      setError(oauthError.message);
+      setLoading(false);
+    }
+  }
+
   return (
-    <AuthButton
-      type="button"
-      variant="outline"
-      onClick={() => {
-        /* Phase 2 UI only — OAuth wired in a later phase */
-      }}
-    >
-      <GoogleIcon />
-      {label}
-    </AuthButton>
+    <div className="space-y-3">
+      {error && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
+      <AuthButton
+        type="button"
+        variant="outline"
+        loading={loading}
+        disabled={!authEnabled}
+        onClick={handleGoogle}
+      >
+        <GoogleIcon />
+        {label}
+      </AuthButton>
+    </div>
   );
 }

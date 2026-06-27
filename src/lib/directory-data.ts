@@ -19,9 +19,17 @@ export type DirectoryListing = {
   verified: boolean;
   featured: boolean;
   memberSince: string;
+  createdAt?: string;
   profileViews: number;
   rating: number;
   reviewCount: number;
+  profileScore?: number;
+  logoUrl?: string;
+  email?: string;
+  website?: string;
+  whatsapp?: string;
+  phone?: string;
+  source: "live" | "sample";
 };
 
 export const categoryFilters: { value: ListingCategory | "all"; label: string }[] = [
@@ -61,6 +69,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 1240,
     rating: 4.9,
     reviewCount: 38,
+    source: "sample",
   },
   {
     id: "d2",
@@ -78,6 +87,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 2180,
     rating: 4.8,
     reviewCount: 52,
+    source: "sample",
   },
   {
     id: "d3",
@@ -95,6 +105,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 890,
     rating: 4.7,
     reviewCount: 24,
+    source: "sample",
   },
   {
     id: "d4",
@@ -112,6 +123,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 456,
     rating: 4.5,
     reviewCount: 11,
+    source: "sample",
   },
   {
     id: "d5",
@@ -129,6 +141,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 1560,
     rating: 4.6,
     reviewCount: 31,
+    source: "sample",
   },
   {
     id: "d6",
@@ -146,6 +159,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 1920,
     rating: 4.9,
     reviewCount: 44,
+    source: "sample",
   },
   {
     id: "d7",
@@ -163,6 +177,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 1340,
     rating: 4.7,
     reviewCount: 29,
+    source: "sample",
   },
   {
     id: "d8",
@@ -180,6 +195,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 620,
     rating: 4.8,
     reviewCount: 16,
+    source: "sample",
   },
   {
     id: "d9",
@@ -197,6 +213,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 980,
     rating: 4.6,
     reviewCount: 22,
+    source: "sample",
   },
   {
     id: "d10",
@@ -214,6 +231,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 540,
     rating: 4.4,
     reviewCount: 18,
+    source: "sample",
   },
   {
     id: "d11",
@@ -231,6 +249,7 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 710,
     rating: 4.5,
     reviewCount: 14,
+    source: "sample",
   },
   {
     id: "d12",
@@ -248,8 +267,33 @@ export const directoryListings: DirectoryListing[] = [
     profileViews: 1120,
     rating: 4.9,
     reviewCount: 36,
+    source: "sample",
   },
 ];
+
+export function buildCountryFilters(listings: DirectoryListing[]): string[] {
+  const countries = new Set<string>();
+  for (const listing of listings) {
+    if (listing.country.trim()) countries.add(listing.country.trim());
+  }
+
+  return ["All countries", ...[...countries].sort((a, b) => a.localeCompare(b))];
+}
+
+export function mergeDirectoryListings(
+  live: DirectoryListing[],
+  samples: DirectoryListing[],
+  includeSamples: boolean,
+): DirectoryListing[] {
+  if (!includeSamples) return live;
+
+  const liveNames = new Set(live.map((listing) => listing.name.toLowerCase()));
+  const dedupedSamples = samples.filter(
+    (listing) => !liveNames.has(listing.name.toLowerCase()),
+  );
+
+  return [...live, ...dedupedSamples];
+}
 
 export function filterDirectoryListings(
   listings: DirectoryListing[],
@@ -285,8 +329,12 @@ export function filterDirectoryListings(
         return b.profileViews - a.profileViews;
       case "rating":
         return b.rating - a.rating || b.reviewCount - a.reviewCount;
-      case "newest":
+      case "newest": {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (aTime !== bTime) return bTime - aTime;
         return b.memberSince.localeCompare(a.memberSince);
+      }
       case "name":
         return a.name.localeCompare(b.name);
       default:

@@ -1,12 +1,15 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { useSession } from "@/components/providers/SessionProvider";
-import type { GrantOpportunity } from "@/lib/funding-data";
-import { calculateReadiness } from "@/lib/funding-data";
+import {
+  calculateReadiness,
+  FUNDING_DISCLAIMER,
+  type MatchedGrantOpportunity,
+} from "@/lib/funding-data";
 
 type ApplicationModalProps = {
-  grant: GrantOpportunity | null;
+  grant: MatchedGrantOpportunity | null;
   completedItems: Set<string>;
   onClose: () => void;
 };
@@ -34,7 +37,7 @@ export function ApplicationModal({
       <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card shadow-xl">
         <div className="sticky top-0 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           <div>
-            <h2 className="font-semibold text-foreground">Prepare application</h2>
+            <h2 className="font-semibold text-foreground">Prepare your application</h2>
             <p className="text-sm text-muted">{grant.name}</p>
           </div>
           <button
@@ -47,6 +50,10 @@ export function ApplicationModal({
         </div>
 
         <div className="space-y-4 p-5">
+          <div className="rounded-xl border border-primary/15 bg-primary-light/40 p-4 text-sm text-foreground">
+            {FUNDING_DISCLAIMER}
+          </div>
+
           <div
             className={`rounded-xl p-4 ${
               ready ? "bg-primary-light" : "bg-accent-light"
@@ -89,15 +96,27 @@ export function ApplicationModal({
             </p>
           </div>
 
+          <a
+            href={grant.applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-dark"
+          >
+            Apply on provider site
+            <ExternalLink className="h-4 w-4" />
+          </a>
+
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-dark"
+            className="w-full rounded-xl border border-border py-3 text-sm font-semibold text-muted hover:bg-primary-light/30"
           >
-            {ready ? "Start application (preview)" : "Complete checklist first"}
+            {ready ? "Back to checklist" : "Complete checklist first"}
           </button>
+
           <p className="text-center text-xs text-muted">
-            Full application flow connects in a later phase.
+            AfriGrow prepares your documents and narrative — the provider reviews and decides
+            on funding.
           </p>
         </div>
       </div>

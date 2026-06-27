@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -13,7 +14,9 @@ export default function LoginPage() {
       title="Welcome back"
       subtitle="Log in to manage your business, agents, and growth tools."
     >
-      <LoginForm />
+      <Suspense fallback={<div className="text-sm text-muted">Loading…</div>}>
+        <LoginForm />
+      </Suspense>
     </AuthLayout>
   );
 }

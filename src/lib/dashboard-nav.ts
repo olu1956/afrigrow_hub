@@ -4,6 +4,7 @@ import {
   Building2,
   CreditCard,
   Handshake,
+  Inbox,
   LayoutDashboard,
   Megaphone,
   MessageSquare,
@@ -122,6 +123,21 @@ export const mainNav: NavItem[] = [
   ...workspaceModules,
 ];
 
+export const adminNav: NavItem[] = [
+  {
+    label: "Inbound leads",
+    href: "/dashboard/admin/enquiries",
+    icon: Inbox,
+    description: "Contact, partner & Enterprise",
+  },
+  {
+    label: "Business guides",
+    href: "/dashboard/admin/guides",
+    icon: BookOpen,
+    description: "Publish academy guides",
+  },
+];
+
 export const bottomNav: NavItem[] = [
   {
     label: "Billing",
@@ -144,5 +160,7 @@ export const mockBusiness = {
   email: "hello@amarastextiles.com",
   plan: "Growth",
   location: "Lagos, Nigeria",
+  country: "Nigeria",
+  role: "owner",
   initials: "AO",
 };

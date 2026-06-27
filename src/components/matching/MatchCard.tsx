@@ -10,12 +10,20 @@ type MatchCardProps = {
 };
 
 export function MatchCard({ listing, onEnquire }: MatchCardProps) {
+  const enquired =
+    listing.matchStatus === "enquired" || listing.matchStatus === "accepted";
+
   return (
     <article className="flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md hover:shadow-primary/5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-foreground">{listing.name}</h3>
+            {listing.source === "demo" && (
+              <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold uppercase text-muted ring-1 ring-border">
+                Sample
+              </span>
+            )}
             {listing.verified && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary">
                 <ShieldCheck className="h-3 w-3" />
@@ -60,9 +68,10 @@ export function MatchCard({ listing, onEnquire }: MatchCardProps) {
       <button
         type="button"
         onClick={() => onEnquire(listing)}
-        className="mt-5 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark"
+        disabled={enquired}
+        className="mt-5 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:cursor-default disabled:bg-primary/70"
       >
-        Send enquiry
+        {enquired ? "Enquiry sent" : "Send enquiry"}
       </button>
     </article>
   );

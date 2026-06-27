@@ -7,9 +7,9 @@ type JoinNowButtonProps = {
 };
 
 const sizeClasses = {
-  sm: "px-3.5 py-2 text-xs",
-  md: "px-5 py-2.5 text-sm",
-  lg: "px-8 py-3.5 text-base",
+  sm: "px-4 py-2.5 text-sm",
+  md: "px-5 py-2.5 text-base",
+  lg: "px-6 py-3 text-lg",
 };
 
 export function JoinNowButton({

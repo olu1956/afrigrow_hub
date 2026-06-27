@@ -1,5 +1,12 @@
 export type MatchType = "buyers" | "suppliers" | "partners";
 
+export type MarketplaceMatchStatus =
+  | "suggested"
+  | "enquired"
+  | "accepted"
+  | "declined"
+  | "archived";
+
 export type ListingCategory =
   | "retail"
   | "manufacturing"
@@ -20,6 +27,8 @@ export type MarketplaceListing = {
   lookingFor: string;
   services: string[];
   verified: boolean;
+  matchStatus?: MarketplaceMatchStatus;
+  source?: "live" | "demo";
 };
 
 export const matchTypeTabs: { id: MatchType; label: string; description: string }[] = [

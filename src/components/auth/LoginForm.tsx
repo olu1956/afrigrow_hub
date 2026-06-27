@@ -1,89 +1,104 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthDivider } from "@/components/auth/AuthDivider";
 import { AuthInput } from "@/components/auth/AuthInput";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
+import { sessionFromEmail } from "@/lib/auth/session";
 import {
   type FieldErrors,
   validateEmail,
   validatePassword,
 } from "@/lib/auth-validation";
 import { useSession } from "@/components/providers/SessionProvider";
-import { loadSessionPreview } from "@/lib/session-preview";
-
-function ownerFromEmail(email: string): string {
-  const local = email.split("@")[0] ?? "User";
-  return local
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
+import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
-  const { setSession } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") ?? "/dashboard";
+  const { setSession, authEnabled } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
-  function validate() {
+  function validateValues(nextEmail: string, nextPassword: string) {
     const next: FieldErrors = {};
-    const emailError = validateEmail(email);
-    const passwordError = validatePassword(password);
+    const emailError = validateEmail(nextEmail);
+    const passwordError = validatePassword(nextPassword);
     if (emailError) next.email = emailError;
     if (passwordError) next.password = passwordError;
     setErrors(next);
     return Object.keys(next).length === 0;
   }
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!validate()) return;
+
+    const formData = new FormData(e.currentTarget);
+    const submittedEmail = String(formData.get("email") ?? "").trim();
+    const submittedPassword = String(formData.get("password") ?? "");
+
+    setEmail(submittedEmail);
+    setPassword(submittedPassword);
+
+    if (!validateValues(submittedEmail, submittedPassword)) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    const existing = loadSessionPreview();
-    const trimmedEmail = email.trim();
-    setSession({
-      owner:
-        existing.email === trimmedEmail ? existing.owner : ownerFromEmail(trimmedEmail),
-      name:
-        existing.email === trimmedEmail
-          ? existing.name
-          : `${ownerFromEmail(trimmedEmail)}'s Business`,
-      email: trimmedEmail,
-    });
-    setLoading(false);
-    setSubmitted(true);
-  }
+    setFormError(null);
 
-  if (submitted) {
-    return (
-      <div className="rounded-2xl border border-primary/20 bg-primary-light p-6 text-center">
-        <p className="font-semibold text-primary">Sign-in preview complete</p>
-        <p className="mt-2 text-sm text-muted">
-          Authentication backend will be connected in a later phase. Dashboard
-          shell is Module 3.
-        </p>
-        <Link
-          href="/dashboard"
-          className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
-        >
-          Preview dashboard →
-        </Link>
-      </div>
-    );
+    if (authEnabled) {
+      try {
+        const supabase = createClient();
+        const { error } = await supabase.auth.signInWithPassword({
+          email: submittedEmail,
+          password: submittedPassword,
+        });
+
+        if (error) {
+          setFormError(error.message);
+          return;
+        }
+
+        window.location.assign(redirect);
+      } catch {
+        setFormError("Unable to sign in. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 600));
+    const session = sessionFromEmail(submittedEmail);
+    setSession(session);
+    setLoading(false);
+    router.push(redirect);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {!authEnabled && (
+        <p className="rounded-xl border border-dashed border-border bg-primary-light/40 px-4 py-3 text-xs text-muted">
+          Preview mode — add Supabase env vars to enable real authentication.
+        </p>
+      )}
+
       <SocialAuthButtons mode="login" />
       <AuthDivider />
+
+      {formError && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {formError}
+        </p>
+      )}
 
       <AuthInput
         label="Email address"
