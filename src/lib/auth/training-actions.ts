@@ -123,6 +123,7 @@ function buildSessionView(
     enrollmentCount,
     isEnrolled: userEnrollment?.status === "enrolled",
     enrollmentId: userEnrollment?.id ?? null,
+    hasPreviousAttempt: Boolean(userEnrollment && userEnrollment.status !== "enrolled"),
   };
 }
 
@@ -225,20 +226,20 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       return { ok: false, error: formatTrainingDbError(coursesError.message) };
     }
 
-    const { data: myEnrollmentsRaw, error: enrollError } = await supabase
+    const { data: myEnrollmentRowsRaw, error: enrollError } = await supabase
       .from(TRAINING_ENROLLMENTS_TABLE)
       .select("*")
       .eq("user_id", user.id)
-      .eq("status", "enrolled")
       .order("enrolled_at", { ascending: false });
 
     if (enrollError) {
       return { ok: false, error: formatTrainingDbError(enrollError.message) };
     }
 
-    const myEnrollments = (myEnrollmentsRaw ?? []) as TrainingEnrollment[];
+    const myEnrollmentRows = (myEnrollmentRowsRaw ?? []) as TrainingEnrollment[];
+    const myEnrollments = myEnrollmentRows.filter((item) => item.status === "enrolled");
     const enrollmentBySession = new Map(
-      myEnrollments.map((item) => [item.session_id, item]),
+      myEnrollmentRows.map((item) => [item.session_id, item]),
     );
 
     const courseIds = [

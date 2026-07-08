@@ -14,6 +14,7 @@ export type TrainingSessionView = {
   enrollmentCount: number;
   isEnrolled: boolean;
   enrollmentId: string | null;
+  hasPreviousAttempt: boolean;
 };
 
 export type TrainingCourseView = {
@@ -94,6 +95,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
         enrollmentCount: 12,
         isEnrolled: false,
         enrollmentId: null,
+        hasPreviousAttempt: false,
       },
     ],
   },
@@ -118,6 +120,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
         enrollmentCount: 8,
         isEnrolled: true,
         enrollmentId: "demo-enrollment-1",
+        hasPreviousAttempt: false,
       },
     ],
   },

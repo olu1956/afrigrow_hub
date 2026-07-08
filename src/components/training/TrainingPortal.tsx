@@ -263,7 +263,7 @@ function SessionCard({
           ) : null}
         </div>
 
-        {!session.isEnrolled && onReset ? (
+        {!session.isEnrolled && session.hasPreviousAttempt && onReset ? (
           <button
             type="button"
             disabled={enrolling}
@@ -800,10 +800,10 @@ export function TrainingPortal() {
         <div className="space-y-4">
           {myEnrollments.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
-              <h2 className="text-lg font-bold text-foreground">No courses yet</h2>
+              <h2 className="text-lg font-bold text-foreground">No enrolled courses yet</h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-                You have not enrolled in any sessions. Browse published courses and click Enroll on
-                a session to get started.
+                You are not enrolled in any sessions yet. Browse published courses and click Enroll
+                on a session to get started.
               </p>
               <button
                 type="button"
@@ -827,6 +827,12 @@ export function TrainingPortal() {
                       {enrollment.traineeName || "No name saved"}
                     </p>
                     <p className="text-muted">{enrollment.traineeEmail || "No email saved"}</p>
+                    {enrollment.traineePhone ? (
+                      <p className="text-muted">{enrollment.traineePhone}</p>
+                    ) : null}
+                    {enrollment.traineeBusiness ? (
+                      <p className="text-muted">{enrollment.traineeBusiness}</p>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="mt-3 text-sm text-amber-800">
