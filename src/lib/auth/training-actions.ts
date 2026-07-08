@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { isSupabaseAuthEnabled } from "@/lib/auth/config";
 import { BUSINESSES_TABLE } from "@/lib/database/businesses";
+import { USERS_PROFILE_TABLE } from "@/lib/database/users-profile";
 import {
   TRAINING_COURSES_TABLE,
   type TrainingCourse,
@@ -23,8 +24,10 @@ import {
   demoMyEnrollments,
   demoTrainingCourses,
   type TrainingCourseView,
+  type TrainingEnrollmentPrefill,
   type TrainingEnrollmentView,
   type TrainingProviderView,
+  type ProviderEnrollmentRosterEntry,
   type TrainingSessionView,
 } from "@/lib/training-data";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +43,8 @@ export type TrainingPortalDataResult = TrainingActionResult & {
   myEnrollments?: TrainingEnrollmentView[];
   provider?: TrainingProviderView | null;
   providerCourses?: TrainingCourseView[];
+  providerRoster?: ProviderEnrollmentRosterEntry[];
+  enrollmentPrefill?: TrainingEnrollmentPrefill;
   isProvider?: boolean;
 };
 
@@ -52,7 +57,33 @@ function formatTrainingDbError(message: string): string {
     return "Run migration 20260708150000_create_training_portal.sql in Supabase SQL Editor, then refresh this page.";
   }
 
+  if (message.includes("trainee_name") || message.includes("trainee_email")) {
+    return "Run migration 20260708160000_training_enrollment_contact_details.sql in Supabase SQL Editor, then refresh this page.";
+  }
+
   return message;
+}
+
+async function getEnrollmentPrefill(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  userEmail: string,
+): Promise<TrainingEnrollmentPrefill> {
+  const [{ data: profile }, { data: business }] = await Promise.all([
+    supabase.from(USERS_PROFILE_TABLE).select("full_name, email").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from(BUSINESSES_TABLE)
+      .select("business_name, email, whatsapp")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+
+  return {
+    traineeName: profile?.full_name?.trim() || "",
+    traineeEmail: business?.email?.trim() || profile?.email?.trim() || userEmail,
+    traineePhone: business?.whatsapp?.trim() || "",
+    traineeBusiness: business?.business_name?.trim() || "",
+  };
 }
 
 async function getUserBusinessId(
@@ -126,6 +157,8 @@ function buildEnrollmentView(
     zoomUrl: session.zoom_url,
     status: enrollment.status,
     enrolledAt: enrollment.enrolled_at,
+    traineeName: enrollment.trainee_name ?? "",
+    traineeEmail: enrollment.trainee_email ?? "",
   };
 }
 
@@ -157,6 +190,13 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       myEnrollments: demoMyEnrollments,
       provider: null,
       providerCourses: [],
+      providerRoster: [],
+      enrollmentPrefill: {
+        traineeName: "Demo User",
+        traineeEmail: "demo@example.com",
+        traineePhone: "",
+        traineeBusiness: "Demo Business",
+      },
       isProvider: false,
     };
   }
@@ -314,6 +354,13 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
 
     let providerCourses: TrainingCourseView[] = [];
     let providerView: TrainingProviderView | null = null;
+    let providerRoster: ProviderEnrollmentRosterEntry[] = [];
+
+    const enrollmentPrefill = await getEnrollmentPrefill(
+      supabase,
+      user.id,
+      user.email ?? "",
+    );
 
     if (provider) {
       providerView = {
@@ -343,16 +390,67 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
           .order("starts_at", { ascending: true });
 
         ownSessions = (ownSessionRows ?? []) as TrainingSession[];
+
+        const ownSessionIds = ownSessions.map((s) => s.id);
+        const providerEnrollmentCounts = new Map<string, number>();
+
+        if (ownSessionIds.length > 0) {
+          const { data: providerEnrollments } = await supabase
+            .from(TRAINING_ENROLLMENTS_TABLE)
+            .select("*")
+            .in("course_id", ownCourseIds)
+            .eq("status", "enrolled")
+            .order("enrolled_at", { ascending: false });
+
+          const courseTitleById = new Map(
+            (ownCourses ?? []).map((c) => [(c as TrainingCourse).id, (c as TrainingCourse).title]),
+          );
+          const sessionById = new Map(ownSessions.map((s) => [s.id, s]));
+
+          for (const row of providerEnrollments ?? []) {
+            const enrollment = row as TrainingEnrollment;
+            providerEnrollmentCounts.set(
+              enrollment.session_id,
+              (providerEnrollmentCounts.get(enrollment.session_id) ?? 0) + 1,
+            );
+
+            const session = sessionById.get(enrollment.session_id);
+            if (!session) continue;
+
+            providerRoster.push({
+              id: enrollment.id,
+              courseId: enrollment.course_id,
+              courseTitle: courseTitleById.get(enrollment.course_id) ?? "Course",
+              sessionId: enrollment.session_id,
+              sessionTitle: session.title,
+              sessionStartsAt: session.starts_at,
+              traineeName: enrollment.trainee_name ?? "",
+              traineeEmail: enrollment.trainee_email ?? "",
+              traineePhone: enrollment.trainee_phone ?? "",
+              traineeBusiness: enrollment.trainee_business ?? "",
+              enrolledAt: enrollment.enrolled_at,
+              status: enrollment.status,
+            });
+          }
+        }
+
+        providerCourses = (ownCourses ?? []).map((row) => {
+          const course = row as TrainingCourse;
+          const courseSessions = ownSessions
+            .filter((s) => s.course_id === course.id)
+            .map((s) =>
+              buildSessionView(
+                s,
+                providerEnrollmentCounts.get(s.id) ?? 0,
+                undefined,
+              ),
+            );
+
+          return buildCourseView(course, provider.display_name || "You", courseSessions);
+        });
+      } else {
+        providerCourses = [];
       }
-
-      providerCourses = (ownCourses ?? []).map((row) => {
-        const course = row as TrainingCourse;
-        const courseSessions = ownSessions
-          .filter((s) => s.course_id === course.id)
-          .map((s) => buildSessionView(s, 0, undefined));
-
-        return buildCourseView(course, provider.display_name || "You", courseSessions);
-      });
     }
 
     return {
@@ -361,6 +459,8 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       myEnrollments: myEnrollmentViews,
       provider: providerView,
       providerCourses,
+      providerRoster,
+      enrollmentPrefill,
       isProvider: Boolean(provider),
     };
   } catch (err) {
@@ -593,7 +693,15 @@ export async function createSessionAction(input: {
   return { ok: true, sessionId: (data as { id: string }).id };
 }
 
-export async function enrollInSessionAction(sessionId: string): Promise<TrainingActionResult> {
+export async function enrollInSessionAction(
+  sessionId: string,
+  details: {
+    traineeName: string;
+    traineeEmail: string;
+    traineePhone?: string;
+    traineeBusiness?: string;
+  },
+): Promise<TrainingActionResult> {
   if (!isSupabaseAuthEnabled()) {
     return { ok: true };
   }
@@ -640,11 +748,26 @@ export async function enrollInSessionAction(sessionId: string): Promise<Training
 
   const { businessId } = await getUserBusinessId(supabase, user.id);
 
+  const traineeName = details.traineeName.trim();
+  const traineeEmail = details.traineeEmail.trim();
+
+  if (!traineeName) {
+    return { ok: false, error: "Your name is required to enroll." };
+  }
+
+  if (!traineeEmail) {
+    return { ok: false, error: "Your email is required so the provider can contact you." };
+  }
+
   const { error } = await supabase.from(TRAINING_ENROLLMENTS_TABLE).insert({
     course_id: row.course_id,
     session_id: sessionId,
     user_id: user.id,
     business_id: businessId,
+    trainee_name: traineeName,
+    trainee_email: traineeEmail,
+    trainee_phone: details.traineePhone?.trim() ?? "",
+    trainee_business: details.traineeBusiness?.trim() ?? "",
     status: "enrolled",
   });
 

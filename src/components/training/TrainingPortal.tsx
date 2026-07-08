@@ -28,11 +28,125 @@ import {
   demoTrainingCourses,
   formatTrainingDate,
   isSessionUpcoming,
+  type ProviderEnrollmentRosterEntry,
   type TrainingCourseView,
+  type TrainingEnrollmentPrefill,
   type TrainingEnrollmentView,
   type TrainingPortalTab,
   type TrainingSessionView,
 } from "@/lib/training-data";
+
+function EnrollModal({
+  open,
+  courseTitle,
+  sessionTitle,
+  prefill,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  courseTitle: string;
+  sessionTitle: string;
+  prefill: TrainingEnrollmentPrefill;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (details: TrainingEnrollmentPrefill) => void;
+}) {
+  const [traineeName, setTraineeName] = useState(prefill.traineeName);
+  const [traineeEmail, setTraineeEmail] = useState(prefill.traineeEmail);
+  const [traineePhone, setTraineePhone] = useState(prefill.traineePhone);
+  const [traineeBusiness, setTraineeBusiness] = useState(prefill.traineeBusiness);
+
+  useEffect(() => {
+    if (!open) return;
+    setTraineeName(prefill.traineeName);
+    setTraineeEmail(prefill.traineeEmail);
+    setTraineePhone(prefill.traineePhone);
+    setTraineeBusiness(prefill.traineeBusiness);
+  }, [open, prefill]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl">
+        <h2 className="text-lg font-bold text-foreground">Confirm enrollment</h2>
+        <p className="mt-2 text-sm text-muted">
+          {courseTitle} · {sessionTitle}
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          Your details are shared with the course provider so they know who is attending.
+        </p>
+
+        <form
+          className="mt-5 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit({ traineeName, traineeEmail, traineePhone, traineeBusiness });
+          }}
+        >
+          <label className="block text-sm">
+            <span className="font-medium text-foreground">Full name</span>
+            <input
+              required
+              type="text"
+              value={traineeName}
+              onChange={(e) => setTraineeName(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-foreground">Email</span>
+            <input
+              required
+              type="email"
+              value={traineeEmail}
+              onChange={(e) => setTraineeEmail(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-foreground">Phone / WhatsApp</span>
+            <input
+              type="text"
+              value={traineePhone}
+              onChange={(e) => setTraineePhone(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-foreground">Business name</span>
+            <input
+              type="text"
+              value={traineeBusiness}
+              onChange={(e) => setTraineeBusiness(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Confirm enrollment
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function TabButton({
   active,
@@ -68,7 +182,7 @@ function SessionCard({
 }: {
   session: TrainingSessionView;
   courseTitle: string;
-  onEnroll?: (sessionId: string) => void;
+  onEnroll?: (sessionId: string, courseTitle: string, sessionTitle: string) => void;
   onCancel?: (enrollmentId: string) => void;
   showZoom?: boolean;
   enrolling?: boolean;
@@ -110,7 +224,7 @@ function SessionCard({
             <button
               type="button"
               disabled={full || enrolling}
-              onClick={() => onEnroll(session.id)}
+              onClick={() => onEnroll(session.id, courseTitle, session.title)}
               className="rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {enrolling ? "Enrolling…" : full ? "Full" : "Enroll"}
@@ -146,7 +260,7 @@ function CourseCatalogCard({
   onCancel,
 }: {
   course: TrainingCourseView;
-  onEnroll: (sessionId: string) => void;
+  onEnroll: (sessionId: string, courseTitle: string, sessionTitle: string) => void;
   enrollingSessionId: string | null;
   onCancel: (enrollmentId: string) => void;
 }) {
@@ -189,8 +303,21 @@ export function TrainingPortal() {
   const [catalog, setCatalog] = useState<TrainingCourseView[]>([]);
   const [myEnrollments, setMyEnrollments] = useState<TrainingEnrollmentView[]>([]);
   const [providerCourses, setProviderCourses] = useState<TrainingCourseView[]>([]);
+  const [providerRoster, setProviderRoster] = useState<ProviderEnrollmentRosterEntry[]>([]);
+  const [enrollmentPrefill, setEnrollmentPrefill] = useState<TrainingEnrollmentPrefill>({
+    traineeName: "",
+    traineeEmail: "",
+    traineePhone: "",
+    traineeBusiness: "",
+  });
   const [isProvider, setIsProvider] = useState(false);
   const [providerName, setProviderName] = useState("");
+  const [enrollModalOpen, setEnrollModalOpen] = useState(false);
+  const [pendingSession, setPendingSession] = useState<{
+    sessionId: string;
+    courseTitle: string;
+    sessionTitle: string;
+  } | null>(null);
 
   const [loading, setLoading] = useState(authEnabled);
   const [saving, setSaving] = useState(false);
@@ -234,9 +361,18 @@ export function TrainingPortal() {
       return;
     }
 
-    setCatalog(result.catalog ?? []);
-    setMyEnrollments(result.myEnrollments ?? []);
-    setProviderCourses(result.providerCourses ?? []);
+      setCatalog(result.catalog ?? []);
+      setMyEnrollments(result.myEnrollments ?? []);
+      setProviderCourses(result.providerCourses ?? []);
+      setProviderRoster(result.providerRoster ?? []);
+      setEnrollmentPrefill(
+        result.enrollmentPrefill ?? {
+          traineeName: "",
+          traineeEmail: "",
+          traineePhone: "",
+          traineeBusiness: "",
+        },
+      );
     setIsProvider(result.isProvider ?? false);
     setProviderName(result.provider?.displayName ?? "");
     setUsingDemo(false);
@@ -252,10 +388,19 @@ export function TrainingPortal() {
     void loadData();
   }, [hydrated, loadData]);
 
-  async function handleEnroll(sessionId: string) {
-    setEnrollingSessionId(sessionId);
+  function openEnrollModal(sessionId: string, courseTitle: string, sessionTitle: string) {
+    setPendingSession({ sessionId, courseTitle, sessionTitle });
+    setEnrollModalOpen(true);
     setError(null);
-    const result = await enrollInSessionAction(sessionId);
+  }
+
+  async function handleConfirmEnrollment(details: TrainingEnrollmentPrefill) {
+    if (!pendingSession) return;
+
+    setEnrollingSessionId(pendingSession.sessionId);
+    setError(null);
+
+    const result = await enrollInSessionAction(pendingSession.sessionId, details);
     setEnrollingSessionId(null);
 
     if (!result.ok) {
@@ -263,8 +408,14 @@ export function TrainingPortal() {
       return;
     }
 
+    setEnrollModalOpen(false);
+    setPendingSession(null);
     await loadData();
     setTab("my-learning");
+  }
+
+  function handleEnroll(sessionId: string, courseTitle: string, sessionTitle: string) {
+    openEnrollModal(sessionId, courseTitle, sessionTitle);
   }
 
   async function handleCancel(enrollmentId: string) {
@@ -468,7 +619,9 @@ export function TrainingPortal() {
               <CourseCatalogCard
                 key={course.id}
                 course={course}
-                onEnroll={handleEnroll}
+                onEnroll={(sessionId, courseTitle, sessionTitle) =>
+                  handleEnroll(sessionId, courseTitle, sessionTitle)
+                }
                 enrollingSessionId={enrollingSessionId}
                 onCancel={handleCancel}
               />
@@ -735,10 +888,71 @@ export function TrainingPortal() {
                   ))
                 )}
               </div>
+
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-foreground">Enrolled trainees</h2>
+                <p className="text-sm text-muted">
+                  Names and contact details submitted when members enroll in your sessions.
+                </p>
+                {providerRoster.length === 0 ? (
+                  <p className="text-sm text-muted">No enrollments yet.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-border bg-primary-dark text-white">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Trainee</th>
+                          <th className="px-4 py-3 font-semibold">Contact</th>
+                          <th className="px-4 py-3 font-semibold">Session</th>
+                          <th className="px-4 py-3 font-semibold">Enrolled</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {providerRoster.map((entry) => (
+                          <tr key={entry.id} className="border-b border-border last:border-0">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-foreground">
+                                {entry.traineeName || "—"}
+                              </p>
+                              <p className="text-xs text-muted">
+                                {entry.traineeBusiness || "No business listed"}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              <p>{entry.traineeEmail || "—"}</p>
+                              <p className="text-xs">{entry.traineePhone || "—"}</p>
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              <p className="font-medium text-foreground">{entry.sessionTitle}</p>
+                              <p className="text-xs">{formatTrainingDate(entry.sessionStartsAt)}</p>
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {formatTrainingDate(entry.enrolledAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
       ) : null}
+
+      <EnrollModal
+        open={enrollModalOpen}
+        courseTitle={pendingSession?.courseTitle ?? ""}
+        sessionTitle={pendingSession?.sessionTitle ?? ""}
+        prefill={enrollmentPrefill}
+        saving={enrollingSessionId !== null}
+        onClose={() => {
+          setEnrollModalOpen(false);
+          setPendingSession(null);
+        }}
+        onSubmit={handleConfirmEnrollment}
+      />
     </DashboardPageLayout>
   );
 }

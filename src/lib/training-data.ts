@@ -36,6 +36,30 @@ export type TrainingEnrollmentView = {
   zoomUrl: string;
   status: TrainingEnrollmentStatus;
   enrolledAt: string;
+  traineeName: string;
+  traineeEmail: string;
+};
+
+export type TrainingEnrollmentPrefill = {
+  traineeName: string;
+  traineeEmail: string;
+  traineePhone: string;
+  traineeBusiness: string;
+};
+
+export type ProviderEnrollmentRosterEntry = {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  sessionId: string;
+  sessionTitle: string;
+  sessionStartsAt: string;
+  traineeName: string;
+  traineeEmail: string;
+  traineePhone: string;
+  traineeBusiness: string;
+  enrolledAt: string;
+  status: TrainingEnrollmentStatus;
 };
 
 export type TrainingProviderView = {
@@ -108,6 +132,8 @@ export const demoMyEnrollments: TrainingEnrollmentView[] = [
     zoomUrl: "https://zoom.us/j/demo2",
     status: "enrolled",
     enrolledAt: new Date().toISOString(),
+    traineeName: "Demo User",
+    traineeEmail: "demo@example.com",
   },
 ];
 
