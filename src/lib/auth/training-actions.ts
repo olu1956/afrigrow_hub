@@ -759,16 +759,53 @@ export async function enrollInSessionAction(
     return { ok: false, error: "Your email is required so the provider can contact you." };
   }
 
-  const { error } = await supabase.from(TRAINING_ENROLLMENTS_TABLE).insert({
+  const { data: existingEnrollment, error: existingError } = await supabase
+    .from(TRAINING_ENROLLMENTS_TABLE)
+    .select("id, status")
+    .eq("session_id", sessionId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existingError) {
+    return { ok: false, error: formatTrainingDbError(existingError.message) };
+  }
+
+  const enrollmentPayload = {
     course_id: row.course_id,
     session_id: sessionId,
-    user_id: user.id,
     business_id: businessId,
     trainee_name: traineeName,
     trainee_email: traineeEmail,
     trainee_phone: details.traineePhone?.trim() ?? "",
     trainee_business: details.traineeBusiness?.trim() ?? "",
-    status: "enrolled",
+    status: "enrolled" as const,
+  };
+
+  if (existingEnrollment) {
+    if (existingEnrollment.status === "enrolled") {
+      return { ok: false, error: "You are already enrolled in this session." };
+    }
+
+    const { error } = await supabase
+      .from(TRAINING_ENROLLMENTS_TABLE)
+      .update({
+        ...enrollmentPayload,
+        enrolled_at: new Date().toISOString(),
+      })
+      .eq("id", existingEnrollment.id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      return { ok: false, error: formatTrainingDbError(error.message) };
+    }
+
+    revalidatePath("/dashboard/training");
+    return { ok: true };
+  }
+
+  const { error } = await supabase.from(TRAINING_ENROLLMENTS_TABLE).insert({
+    ...enrollmentPayload,
+    user_id: user.id,
   });
 
   if (error) {
