@@ -227,7 +227,7 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       .from(TRAINING_ENROLLMENTS_TABLE)
       .select("*")
       .eq("user_id", user.id)
-      .neq("status", "cancelled")
+      .eq("status", "enrolled")
       .order("enrolled_at", { ascending: false });
 
     if (enrollError) {
@@ -347,10 +347,24 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       .map((enrollment) => {
         const course = enrollmentCourses.get(enrollment.course_id);
         const session = enrollmentSessions.get(enrollment.session_id);
-        if (!course || !session) return null;
-        return buildEnrollmentView(enrollment, course, session);
-      })
-      .filter((item): item is TrainingEnrollmentView => item !== null);
+        if (course && session) {
+          return buildEnrollmentView(enrollment, course, session);
+        }
+
+        return {
+          id: enrollment.id,
+          courseId: enrollment.course_id,
+          courseTitle: course?.title ?? "Enrolled course",
+          sessionId: enrollment.session_id,
+          sessionTitle: session?.title ?? "Scheduled session",
+          startsAt: session?.starts_at ?? enrollment.enrolled_at,
+          zoomUrl: session?.zoom_url ?? "",
+          status: enrollment.status,
+          enrolledAt: enrollment.enrolled_at,
+          traineeName: enrollment.trainee_name ?? "",
+          traineeEmail: enrollment.trainee_email ?? "",
+        };
+      });
 
     let providerCourses: TrainingCourseView[] = [];
     let providerView: TrainingProviderView | null = null;
@@ -835,8 +849,38 @@ export async function cancelEnrollmentAction(enrollmentId: string): Promise<Trai
 
   const { error } = await supabase
     .from(TRAINING_ENROLLMENTS_TABLE)
-    .update({ status: "cancelled" })
+    .delete()
     .eq("id", enrollmentId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { ok: false, error: formatTrainingDbError(error.message) };
+  }
+
+  revalidatePath("/dashboard/training");
+  return { ok: true };
+}
+
+export async function cancelEnrollmentBySessionAction(
+  sessionId: string,
+): Promise<TrainingActionResult> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: true };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "You must be signed in." };
+  }
+
+  const { error } = await supabase
+    .from(TRAINING_ENROLLMENTS_TABLE)
+    .delete()
+    .eq("session_id", sessionId)
     .eq("user_id", user.id);
 
   if (error) {

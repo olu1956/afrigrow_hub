@@ -16,6 +16,7 @@ import { DashboardStatGrid } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
 import {
   cancelEnrollmentAction,
+  cancelEnrollmentBySessionAction,
   createCourseAction,
   createSessionAction,
   enrollInSessionAction,
@@ -318,6 +319,7 @@ export function TrainingPortal() {
     courseTitle: string;
     sessionTitle: string;
   } | null>(null);
+  const [stuckSessionId, setStuckSessionId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(authEnabled);
   const [saving, setSaving] = useState(false);
@@ -388,6 +390,26 @@ export function TrainingPortal() {
     void loadData();
   }, [hydrated, loadData]);
 
+  function handleTabChange(next: TrainingPortalTab) {
+    setTab(next);
+    setError(null);
+    setStuckSessionId(null);
+  }
+
+  async function handleClearStuckEnrollment() {
+    if (!stuckSessionId) return;
+    setSaving(true);
+    const result = await cancelEnrollmentBySessionAction(stuckSessionId);
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error ?? "Could not remove enrollment.");
+      return;
+    }
+    setError(null);
+    setStuckSessionId(null);
+    await loadData();
+  }
+
   function openEnrollModal(sessionId: string, courseTitle: string, sessionTitle: string) {
     setPendingSession({ sessionId, courseTitle, sessionTitle });
     setEnrollModalOpen(true);
@@ -405,6 +427,9 @@ export function TrainingPortal() {
 
     if (!result.ok) {
       setError(result.error ?? "Could not enroll.");
+      if (result.error?.includes("already enrolled")) {
+        setStuckSessionId(pendingSession.sessionId);
+      }
       return;
     }
 
@@ -581,9 +606,19 @@ export function TrainingPortal() {
       ) : null}
 
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {error}
-        </p>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p>{error}</p>
+          {stuckSessionId ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={handleClearStuckEnrollment}
+              className="mt-3 rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wide text-red-800"
+            >
+              Remove enrollment & try again
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {successMessage ? (
@@ -594,20 +629,20 @@ export function TrainingPortal() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          <TabButton active={tab === "catalog"} onClick={() => setTab("catalog")}>
+          <TabButton active={tab === "catalog"} onClick={() => handleTabChange("catalog")}>
             Browse & enroll
           </TabButton>
-          <TabButton active={tab === "my-learning"} onClick={() => setTab("my-learning")}>
+          <TabButton active={tab === "my-learning"} onClick={() => handleTabChange("my-learning")}>
             My courses
           </TabButton>
           {isProvider ? (
-            <TabButton active={tab === "provider"} onClick={() => setTab("provider")}>
+            <TabButton active={tab === "provider"} onClick={() => handleTabChange("provider")}>
               Provider
             </TabButton>
           ) : (
             <button
               type="button"
-              onClick={() => setTab("provider")}
+              onClick={() => handleTabChange("provider")}
               className="rounded-md border border-dashed border-primary/40 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary-light/40"
             >
               Teach a course
@@ -618,7 +653,7 @@ export function TrainingPortal() {
         {tab !== "catalog" ? (
           <button
             type="button"
-            onClick={() => setTab("catalog")}
+            onClick={() => handleTabChange("catalog")}
             className="inline-flex w-fit rounded-md bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
           >
             Browse courses & enroll
@@ -632,7 +667,7 @@ export function TrainingPortal() {
           and publish courses here. To join a course as a learner, open{" "}
           <button
             type="button"
-            onClick={() => setTab("catalog")}
+            onClick={() => handleTabChange("catalog")}
             className="font-semibold text-primary hover:underline"
           >
             Browse & enroll
@@ -695,7 +730,7 @@ export function TrainingPortal() {
               </p>
               <button
                 type="button"
-                onClick={() => setTab("catalog")}
+                onClick={() => handleTabChange("catalog")}
                 className="mt-6 inline-flex rounded-md bg-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
               >
                 Browse courses & enroll
