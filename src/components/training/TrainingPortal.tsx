@@ -177,14 +177,16 @@ function SessionCard({
   session,
   courseTitle,
   onEnroll,
-  onCancel,
+  onWithdraw,
+  onReset,
   showZoom,
   enrolling,
 }: {
   session: TrainingSessionView;
   courseTitle: string;
   onEnroll?: (sessionId: string, courseTitle: string, sessionTitle: string) => void;
-  onCancel?: (enrollmentId: string) => void;
+  onWithdraw?: (sessionId: string) => void;
+  onReset?: (sessionId: string) => void;
   showZoom?: boolean;
   enrolling?: boolean;
 }) {
@@ -232,14 +234,14 @@ function SessionCard({
             </button>
           ) : null}
 
-          {onCancel && session.isEnrolled && session.enrollmentId ? (
+          {onWithdraw && session.isEnrolled ? (
             <button
               type="button"
               disabled={enrolling}
-              onClick={() => onCancel(session.enrollmentId!)}
+              onClick={() => onWithdraw(session.id)}
               className="rounded-md border border-border px-3 py-2 text-xs font-bold uppercase tracking-wide text-muted transition hover:bg-background"
             >
-              Cancel
+              Withdraw
             </button>
           ) : null}
 
@@ -249,6 +251,17 @@ function SessionCard({
             </span>
           ) : null}
         </div>
+
+        {!session.isEnrolled && onReset ? (
+          <button
+            type="button"
+            disabled={enrolling}
+            onClick={() => onReset(session.id)}
+            className="mt-3 text-xs font-semibold text-primary hover:underline"
+          >
+            Clear previous enrollment attempt
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -258,12 +271,14 @@ function CourseCatalogCard({
   course,
   onEnroll,
   enrollingSessionId,
-  onCancel,
+  onWithdraw,
+  onReset,
 }: {
   course: TrainingCourseView;
   onEnroll: (sessionId: string, courseTitle: string, sessionTitle: string) => void;
   enrollingSessionId: string | null;
-  onCancel: (enrollmentId: string) => void;
+  onWithdraw: (sessionId: string) => void;
+  onReset: (sessionId: string) => void;
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -285,7 +300,8 @@ function CourseCatalogCard({
                 session={session}
                 courseTitle={course.title}
                 onEnroll={onEnroll}
-                onCancel={onCancel}
+                onWithdraw={onWithdraw}
+                onReset={onReset}
                 enrolling={enrollingSessionId === session.id}
               />
             ))}
@@ -444,10 +460,37 @@ export function TrainingPortal() {
     openEnrollModal(sessionId, courseTitle, sessionTitle);
   }
 
-  async function handleCancel(enrollmentId: string) {
+  async function handleWithdrawSession(sessionId: string) {
     setSaving(true);
     setError(null);
-    const result = await cancelEnrollmentAction(enrollmentId);
+    setSuccessMessage(null);
+
+    const result = await cancelEnrollmentBySessionAction(sessionId);
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not withdraw from this session.");
+      return;
+    }
+
+    setSuccessMessage("Enrollment removed. You can enroll again when ready.");
+    setStuckSessionId(null);
+    await loadData();
+  }
+
+  async function handleResetSession(sessionId: string) {
+    await handleWithdrawSession(sessionId);
+  }
+
+  async function handleCancel(enrollmentId: string, sessionId?: string) {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const result = sessionId
+      ? await cancelEnrollmentBySessionAction(sessionId)
+      : await cancelEnrollmentAction(enrollmentId);
+
     setSaving(false);
 
     if (!result.ok) {
@@ -455,6 +498,7 @@ export function TrainingPortal() {
       return;
     }
 
+    setSuccessMessage("Enrollment removed.");
     await loadData();
   }
 
@@ -708,12 +752,13 @@ export function TrainingPortal() {
                 <CourseCatalogCard
                   key={course.id}
                   course={course}
-                  onEnroll={(sessionId, courseTitle, sessionTitle) =>
-                    handleEnroll(sessionId, courseTitle, sessionTitle)
-                  }
-                  enrollingSessionId={enrollingSessionId}
-                  onCancel={handleCancel}
-                />
+                onEnroll={(sessionId, courseTitle, sessionTitle) =>
+                  handleEnroll(sessionId, courseTitle, sessionTitle)
+                }
+                enrollingSessionId={enrollingSessionId}
+                onWithdraw={handleWithdrawSession}
+                onReset={handleResetSession}
+              />
               ))
             )}
           </div>
@@ -761,10 +806,10 @@ export function TrainingPortal() {
                     <button
                       type="button"
                       disabled={saving}
-                      onClick={() => handleCancel(enrollment.id)}
+                      onClick={() => handleCancel(enrollment.id, enrollment.sessionId)}
                       className="rounded-md border border-border px-3 py-2 text-xs font-bold uppercase tracking-wide text-muted"
                     >
-                      Cancel enrollment
+                      Withdraw
                     </button>
                   ) : null}
                 </div>
