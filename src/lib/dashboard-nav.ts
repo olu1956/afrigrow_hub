@@ -3,6 +3,7 @@ import {
   BookOpen,
   Building2,
   CreditCard,
+  GraduationCap,
   Handshake,
   Inbox,
   LayoutDashboard,
@@ -103,6 +104,12 @@ export const workspaceModules: NavItem[] = [
     href: "/dashboard/directory",
     icon: BookOpen,
     description: "Business listings",
+  },
+  {
+    label: "Training",
+    href: "/dashboard/training",
+    icon: GraduationCap,
+    description: "Courses & live sessions",
   },
   {
     label: "Analytics",

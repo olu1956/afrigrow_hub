@@ -36,12 +36,20 @@ export function BusinessAcademyHero() {
             Ongoing learning is essential for any successful business. Use these guides
             alongside your AI agents to turn insight into action.
           </p>
-          <Link
-            href="/join"
-            className="mt-8 inline-flex w-fit rounded-full bg-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
-          >
-            Join free
-          </Link>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/join"
+              className="inline-flex w-fit rounded-full bg-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
+            >
+              Join free
+            </Link>
+            <Link
+              href="/dashboard/training"
+              className="inline-flex w-fit rounded-full border border-white/40 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white/10"
+            >
+              Live training
+            </Link>
+          </div>
         </div>
       </div>
 
