@@ -14,6 +14,7 @@ import { homeSectionLinks } from "@/lib/home-nav";
 
 const partnerLinks = [
   { href: "/partners", label: "Our Partners" },
+  { href: "/partners/programme", label: "Partner Programme" },
   { href: "/partners/become-a-partner", label: "Become a Partner" },
 ];
 

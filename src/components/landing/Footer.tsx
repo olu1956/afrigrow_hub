@@ -64,6 +64,11 @@ export function Footer() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/partners/programme" className="transition hover:text-white">
+                    Partner Programme
+                  </Link>
+                </li>
+                <li>
                   <Link href="/partners/become-a-partner" className="transition hover:text-white">
                     Become a Partner
                   </Link>

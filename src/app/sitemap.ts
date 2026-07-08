@@ -16,6 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/contact",
     "/privacy",
     "/partners",
+    "/partners/programme",
     "/partners/become-a-partner",
     "/initiatives/business-academy",
   ];

@@ -75,6 +75,17 @@ export function BecomeAPartnerForm() {
               </div>
             );
           })}
+
+          <p className="text-sm leading-relaxed text-muted">
+            Review tiers, example offers, and agreement terms on the{" "}
+            <Link
+              href="/partners/programme"
+              className="font-semibold text-primary hover:underline"
+            >
+              Partner Programme
+            </Link>{" "}
+            page before you apply.
+          </p>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:col-span-3">

@@ -30,14 +30,26 @@ export default function PartnersPage() {
             <p className="text-lg font-bold text-foreground">Want to partner with AfriGrow?</p>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted">
               Reach African SMEs with offers, tools, and services they need to profile,
-              promote, and grow. We feature partners on this page and the homepage logo strip.
+              promote, and grow. See tiers and terms on the{" "}
+              <Link href="/partners/programme" className="font-semibold text-primary hover:underline">
+                Partner Programme
+              </Link>
+              , then apply — we feature partners on this page and the homepage logo strip.
             </p>
-            <Link
-              href="/partners/become-a-partner"
-              className="mt-6 inline-flex rounded-md bg-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
-            >
-              Become a partner
-            </Link>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/partners/programme"
+                className="inline-flex rounded-md border border-primary px-6 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:bg-primary/5"
+              >
+                Partner Programme
+              </Link>
+              <Link
+                href="/partners/become-a-partner"
+                className="inline-flex rounded-md bg-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
+              >
+                Become a partner
+              </Link>
+            </div>
           </div>
         </div>
       </section>
