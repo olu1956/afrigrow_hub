@@ -38,6 +38,8 @@ export type TrainingEnrollmentView = {
   enrolledAt: string;
   traineeName: string;
   traineeEmail: string;
+  traineePhone: string;
+  traineeBusiness: string;
 };
 
 export type TrainingEnrollmentPrefill = {
@@ -134,6 +136,8 @@ export const demoMyEnrollments: TrainingEnrollmentView[] = [
     enrolledAt: new Date().toISOString(),
     traineeName: "Demo User",
     traineeEmail: "demo@example.com",
+    traineePhone: "",
+    traineeBusiness: "Demo Business",
   },
 ];
 

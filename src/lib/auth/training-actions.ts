@@ -159,6 +159,8 @@ function buildEnrollmentView(
     enrolledAt: enrollment.enrolled_at,
     traineeName: enrollment.trainee_name ?? "",
     traineeEmail: enrollment.trainee_email ?? "",
+    traineePhone: enrollment.trainee_phone ?? "",
+    traineeBusiness: enrollment.trainee_business ?? "",
   };
 }
 
@@ -363,6 +365,8 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
           enrolledAt: enrollment.enrolled_at,
           traineeName: enrollment.trainee_name ?? "",
           traineeEmail: enrollment.trainee_email ?? "",
+          traineePhone: enrollment.trainee_phone ?? "",
+          traineeBusiness: enrollment.trainee_business ?? "",
         };
       });
 

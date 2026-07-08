@@ -338,6 +338,7 @@ export function TrainingPortal() {
     traineePhone: "",
     traineeBusiness: "",
   });
+  const [modalPrefill, setModalPrefill] = useState<TrainingEnrollmentPrefill>(enrollmentPrefill);
   const [isProvider, setIsProvider] = useState(false);
   const [providerName, setProviderName] = useState("");
   const [enrollModalOpen, setEnrollModalOpen] = useState(false);
@@ -438,6 +439,17 @@ export function TrainingPortal() {
   }
 
   function openEnrollModal(sessionId: string, courseTitle: string, sessionTitle: string) {
+    const existing = myEnrollments.find((e) => e.sessionId === sessionId);
+    setModalPrefill(
+      existing
+        ? {
+            traineeName: existing.traineeName || enrollmentPrefill.traineeName,
+            traineeEmail: existing.traineeEmail || enrollmentPrefill.traineeEmail,
+            traineePhone: existing.traineePhone || enrollmentPrefill.traineePhone,
+            traineeBusiness: existing.traineeBusiness || enrollmentPrefill.traineeBusiness,
+          }
+        : enrollmentPrefill,
+    );
     setPendingSession({ sessionId, courseTitle, sessionTitle });
     setEnrollModalOpen(true);
     setError(null);
@@ -460,10 +472,16 @@ export function TrainingPortal() {
       return;
     }
 
+    const wasAlreadyEnrolled = myEnrollments.some(
+      (e) => e.sessionId === pendingSession.sessionId && e.status === "enrolled",
+    );
+
     setEnrollModalOpen(false);
     setPendingSession(null);
     setSuccessMessage(
-      "Enrollment confirmed. Open the My courses tab to see your session and contact details.",
+      wasAlreadyEnrolled
+        ? "Enrollment details updated. Check My courses for your saved contact information."
+        : "Enrollment confirmed. Open the My courses tab to see your session and contact details.",
     );
     await loadData();
     setTab("my-learning");
@@ -1116,7 +1134,7 @@ export function TrainingPortal() {
         open={enrollModalOpen}
         courseTitle={pendingSession?.courseTitle ?? ""}
         sessionTitle={pendingSession?.sessionTitle ?? ""}
-        prefill={enrollmentPrefill}
+        prefill={modalPrefill}
         saving={enrollingSessionId !== null}
         onClose={() => {
           setEnrollModalOpen(false);
