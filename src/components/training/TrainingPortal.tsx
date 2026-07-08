@@ -435,6 +435,7 @@ export function TrainingPortal() {
 
     setEnrollModalOpen(false);
     setPendingSession(null);
+    setSuccessMessage("Enrollment confirmed. Your session is now under My courses.");
     await loadData();
     setTab("my-learning");
   }

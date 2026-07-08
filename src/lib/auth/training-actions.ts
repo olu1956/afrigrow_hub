@@ -795,11 +795,7 @@ export async function enrollInSessionAction(
     status: "enrolled" as const,
   };
 
-  if (existingEnrollment) {
-    if (existingEnrollment.status === "enrolled") {
-      return { ok: false, error: "You are already enrolled in this session." };
-    }
-
+  if (existingEnrollment?.status === "enrolled") {
     const { error } = await supabase
       .from(TRAINING_ENROLLMENTS_TABLE)
       .update({
@@ -815,6 +811,18 @@ export async function enrollInSessionAction(
 
     revalidatePath("/dashboard/training");
     return { ok: true };
+  }
+
+  if (existingEnrollment) {
+    const { error: deleteError } = await supabase
+      .from(TRAINING_ENROLLMENTS_TABLE)
+      .delete()
+      .eq("id", existingEnrollment.id)
+      .eq("user_id", user.id);
+
+    if (deleteError) {
+      return { ok: false, error: formatTrainingDbError(deleteError.message) };
+    }
   }
 
   const { error } = await supabase.from(TRAINING_ENROLLMENTS_TABLE).insert({
