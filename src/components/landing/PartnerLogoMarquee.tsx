@@ -30,6 +30,21 @@ function PartnerLogoTile({ partner }: PartnerLogoTileProps) {
   );
 
   if (partner.href) {
+    const isExternal = partner.href.startsWith("http");
+    if (isExternal) {
+      return (
+        <a
+          href={partner.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${partner.name} — AfriGrow partner`}
+          className="shrink-0"
+        >
+          {content}
+        </a>
+      );
+    }
+
     return (
       <Link
         href={partner.href}

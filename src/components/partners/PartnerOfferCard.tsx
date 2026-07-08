@@ -56,12 +56,23 @@ export function PartnerOfferCard({ partner }: PartnerOfferCardProps) {
         ) : null}
 
         {partner.ctaLabel && partner.ctaHref ? (
-          <Link
-            href={partner.ctaHref}
-            className="mt-4 inline-flex w-fit rounded-md bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
-          >
-            {partner.ctaLabel}
-          </Link>
+          partner.ctaHref.startsWith("http") ? (
+            <a
+              href={partner.ctaHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex w-fit rounded-md bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
+            >
+              {partner.ctaLabel}
+            </a>
+          ) : (
+            <Link
+              href={partner.ctaHref}
+              className="mt-4 inline-flex w-fit rounded-md bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
+            >
+              {partner.ctaLabel}
+            </Link>
+          )
         ) : partner.ctaLabel ? (
           <span className="mt-4 inline-flex w-fit rounded-md border border-border bg-background px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted">
             {partner.ctaLabel}

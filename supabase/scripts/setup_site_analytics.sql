@@ -36,9 +36,9 @@ $$;
 create or replace function public.get_public_site_stats()
 returns json
 language sql
+stable
 security definer
 set search_path = public
-set stable
 as $$
   select json_build_object(
     'members_count', coalesce((select count(*)::int from public.businesses), 0),

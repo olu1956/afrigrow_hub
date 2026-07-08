@@ -71,6 +71,20 @@ export const partnerOffers: PartnerOffer[] = [
     cardTheme: "from-[#0f2744] via-[#163a5f] to-[#1e4d7b]",
   },
   {
+    id: "canuk",
+    name: "CANUK — Central Association of Nigerians in the United Kingdom",
+    category: "Diaspora & community",
+    headline: "Unifying, protecting, and empowering Nigerians in the UK",
+    description:
+      "CANUK is the national umbrella body for Nigerian community associations across the United Kingdom — connecting diaspora networks, culture, and opportunity.",
+    offer: "Community partnership",
+    ctaLabel: "Visit website",
+    ctaHref: "https://www.canukonline.com/",
+    logoSrc: "/partners/canuk.png",
+    verified: true,
+    cardTheme: "from-[#0a3d2a] via-[#145c3a] to-[#1a7a4c]",
+  },
+  {
     id: "afrigrow",
     name: "AfriGrow Hub",
     category: "Platform",
