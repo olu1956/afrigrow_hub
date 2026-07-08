@@ -11,6 +11,10 @@ export type PartnerLogoEntry = {
 
 function partnerMarqueeHref(partner: (typeof partnerOffers)[number]): string {
   if (partner.id === "afrigrow") return "/";
+  if (partner.id === "about-life") return "https://apple.co/4p6EEB2";
+  if (partner.id === "event-junction") {
+    return "https://apps.apple.com/app/id6758195465";
+  }
   if (partner.ctaHref?.startsWith("http")) return partner.ctaHref;
   return "/partners";
 }
