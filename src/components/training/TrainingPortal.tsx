@@ -545,7 +545,7 @@ export function TrainingPortal() {
   return (
     <DashboardPageLayout
       title="Training"
-      description="Live courses and workshops for African SMEs — enroll as a trainee or publish sessions as a provider."
+      description="Browse live courses and enroll as a learner — or switch to Provider to publish your own sessions."
       heroFooter={
         <DashboardStatGrid
           stats={[
@@ -592,17 +592,54 @@ export function TrainingPortal() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <TabButton active={tab === "catalog"} onClick={() => setTab("catalog")}>
-          Course catalog
-        </TabButton>
-        <TabButton active={tab === "my-learning"} onClick={() => setTab("my-learning")}>
-          My learning
-        </TabButton>
-        <TabButton active={tab === "provider"} onClick={() => setTab("provider")}>
-          Provider
-        </TabButton>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          <TabButton active={tab === "catalog"} onClick={() => setTab("catalog")}>
+            Browse & enroll
+          </TabButton>
+          <TabButton active={tab === "my-learning"} onClick={() => setTab("my-learning")}>
+            My courses
+          </TabButton>
+          {isProvider ? (
+            <TabButton active={tab === "provider"} onClick={() => setTab("provider")}>
+              Provider
+            </TabButton>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setTab("provider")}
+              className="rounded-md border border-dashed border-primary/40 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary-light/40"
+            >
+              Teach a course
+            </button>
+          )}
+        </div>
+
+        {tab !== "catalog" ? (
+          <button
+            type="button"
+            onClick={() => setTab("catalog")}
+            className="inline-flex w-fit rounded-md bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
+          >
+            Browse courses & enroll
+          </button>
+        ) : null}
       </div>
+
+      {tab === "provider" && isProvider ? (
+        <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted">
+          You are in <span className="font-semibold text-foreground">provider mode</span> — create
+          and publish courses here. To join a course as a learner, open{" "}
+          <button
+            type="button"
+            onClick={() => setTab("catalog")}
+            className="font-semibold text-primary hover:underline"
+          >
+            Browse & enroll
+          </button>
+          .
+        </p>
+      ) : null}
 
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted">
@@ -611,31 +648,59 @@ export function TrainingPortal() {
       ) : null}
 
       {!loading && tab === "catalog" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {catalog.length === 0 ? (
-            <p className="text-sm text-muted">No published courses yet. Check back soon.</p>
-          ) : (
-            catalog.map((course) => (
-              <CourseCatalogCard
-                key={course.id}
-                course={course}
-                onEnroll={(sessionId, courseTitle, sessionTitle) =>
-                  handleEnroll(sessionId, courseTitle, sessionTitle)
-                }
-                enrollingSessionId={enrollingSessionId}
-                onCancel={handleCancel}
-              />
-            ))
-          )}
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-primary/15 bg-primary-light/30 p-5">
+            <h2 className="text-lg font-bold text-foreground">Find a course and enroll</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              Pick a published session below and click <span className="font-semibold">Enroll</span>.
+              You will confirm your name and contact details so the provider knows who is attending.
+              After enrolling, your sessions appear under <span className="font-semibold">My courses</span>.
+            </p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {catalog.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-card p-6">
+                <p className="font-semibold text-foreground">No courses open for enrollment yet</p>
+                <p className="mt-2 text-sm text-muted">
+                  When providers publish courses, they will appear here with an Enroll button on each
+                  session.
+                </p>
+              </div>
+            ) : (
+              catalog.map((course) => (
+                <CourseCatalogCard
+                  key={course.id}
+                  course={course}
+                  onEnroll={(sessionId, courseTitle, sessionTitle) =>
+                    handleEnroll(sessionId, courseTitle, sessionTitle)
+                  }
+                  enrollingSessionId={enrollingSessionId}
+                  onCancel={handleCancel}
+                />
+              ))
+            )}
+          </div>
         </div>
       ) : null}
 
       {!loading && tab === "my-learning" ? (
         <div className="space-y-4">
           {myEnrollments.length === 0 ? (
-            <p className="text-sm text-muted">
-              You have not enrolled in any sessions yet. Browse the catalog to get started.
-            </p>
+            <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+              <h2 className="text-lg font-bold text-foreground">No courses yet</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm text-muted">
+                You have not enrolled in any sessions. Browse published courses and click Enroll on
+                a session to get started.
+              </p>
+              <button
+                type="button"
+                onClick={() => setTab("catalog")}
+                className="mt-6 inline-flex rounded-md bg-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
+              >
+                Browse courses & enroll
+              </button>
+            </div>
           ) : (
             myEnrollments.map((enrollment) => (
               <div key={enrollment.id} className="rounded-xl border border-border bg-card p-4">
