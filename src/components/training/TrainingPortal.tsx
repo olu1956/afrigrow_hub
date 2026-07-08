@@ -245,6 +245,17 @@ function SessionCard({
             </button>
           ) : null}
 
+          {onEnroll && session.isEnrolled && isSessionUpcoming(session.startsAt) ? (
+            <button
+              type="button"
+              disabled={enrolling}
+              onClick={() => onEnroll(session.id, courseTitle, session.title)}
+              className="rounded-md border border-primary/30 px-3 py-2 text-xs font-bold uppercase tracking-wide text-primary transition hover:bg-primary-light/40"
+            >
+              Update details
+            </button>
+          ) : null}
+
           {session.isEnrolled ? (
             <span className="inline-flex items-center rounded-full bg-primary-light px-2.5 py-1 text-xs font-semibold text-primary">
               Enrolled
@@ -451,7 +462,9 @@ export function TrainingPortal() {
 
     setEnrollModalOpen(false);
     setPendingSession(null);
-    setSuccessMessage("Enrollment confirmed. Your session is now under My courses.");
+    setSuccessMessage(
+      "Enrollment confirmed. Open the My courses tab to see your session and contact details.",
+    );
     await loadData();
     setTab("my-learning");
   }
@@ -626,7 +639,7 @@ export function TrainingPortal() {
             },
             {
               label: "My upcoming sessions",
-              value: String(upcomingCount),
+              value: String(myEnrollments.length),
               icon: Calendar,
             },
             {
@@ -790,6 +803,18 @@ export function TrainingPortal() {
                 </p>
                 <h3 className="mt-1 font-semibold text-foreground">{enrollment.sessionTitle}</h3>
                 <p className="mt-1 text-sm text-muted">{formatTrainingDate(enrollment.startsAt)}</p>
+                {enrollment.traineeName || enrollment.traineeEmail ? (
+                  <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                    <p className="font-medium text-foreground">
+                      {enrollment.traineeName || "No name saved"}
+                    </p>
+                    <p className="text-muted">{enrollment.traineeEmail || "No email saved"}</p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-amber-800">
+                    Contact details missing — use Update details on Browse & enroll.
+                  </p>
+                )}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {enrollment.zoomUrl && isSessionUpcoming(enrollment.startsAt) ? (
                     <a
