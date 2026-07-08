@@ -61,7 +61,7 @@ async function getUserBusinessId(
 ): Promise<{ businessId: string | null; businessName: string; error?: string }> {
   const { data, error } = await supabase
     .from(BUSINESSES_TABLE)
-    .select("id, name")
+    .select("id, business_name")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -71,7 +71,7 @@ async function getUserBusinessId(
 
   return {
     businessId: data?.id ?? null,
-    businessName: data?.name ?? "",
+    businessName: data?.business_name ?? "",
   };
 }
 
