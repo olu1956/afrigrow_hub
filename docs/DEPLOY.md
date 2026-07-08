@@ -19,6 +19,7 @@ In [Supabase Dashboard](https://supabase.com/dashboard) → your project → **S
 2. Then run the helper scripts in `supabase/scripts/` if not already applied:
    - `setup_inbound_leads.sql`
    - `setup_business_guides.sql`
+   - `setup_site_analytics.sql` ← **public visit counter + member count**
    - `grant_platform_admin_read.sql`
    - `allowlist_self_read.sql`
 3. Promote your admin user (replace email):
