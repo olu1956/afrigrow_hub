@@ -203,9 +203,11 @@ export function TrainingPortal() {
   const [newCourseSummary, setNewCourseSummary] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [sessionTitle, setSessionTitle] = useState("");
-  const [sessionStartsAt, setSessionStartsAt] = useState("");
+  const [sessionDate, setSessionDate] = useState("");
+  const [sessionTime, setSessionTime] = useState("");
   const [sessionZoomUrl, setSessionZoomUrl] = useState("");
   const [sessionMaxSeats, setSessionMaxSeats] = useState("");
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -238,8 +240,11 @@ export function TrainingPortal() {
     setIsProvider(result.isProvider ?? false);
     setProviderName(result.provider?.displayName ?? "");
     setUsingDemo(false);
+    if (!selectedCourseId && (result.providerCourses?.length ?? 0) > 0) {
+      setSelectedCourseId(result.providerCourses![0]!.id);
+    }
     setLoading(false);
-  }, [authEnabled]);
+  }, [authEnabled, selectedCourseId]);
 
   useEffect(() => {
     if (!hydrated || initialized.current) return;
@@ -337,8 +342,21 @@ export function TrainingPortal() {
 
   async function handleCreateSession(e: FormEvent) {
     e.preventDefault();
+    setSuccessMessage(null);
+
     if (!selectedCourseId) {
       setError("Select a course first.");
+      return;
+    }
+
+    if (!sessionDate || !sessionTime) {
+      setError("Please set both a date and a time for the session.");
+      return;
+    }
+
+    const startsAt = new Date(`${sessionDate}T${sessionTime}`);
+    if (Number.isNaN(startsAt.getTime())) {
+      setError("That date and time are not valid. Check both fields and try again.");
       return;
     }
 
@@ -348,7 +366,7 @@ export function TrainingPortal() {
     const result = await createSessionAction({
       courseId: selectedCourseId,
       title: sessionTitle,
-      startsAt: new Date(sessionStartsAt).toISOString(),
+      startsAt: startsAt.toISOString(),
       zoomUrl: sessionZoomUrl,
       maxSeats: sessionMaxSeats ? Number(sessionMaxSeats) : undefined,
     });
@@ -361,9 +379,11 @@ export function TrainingPortal() {
     }
 
     setSessionTitle("");
-    setSessionStartsAt("");
+    setSessionDate("");
+    setSessionTime("");
     setSessionZoomUrl("");
     setSessionMaxSeats("");
+    setSuccessMessage("Session added. You can now publish the course to the catalog.");
     await loadData();
   }
 
@@ -412,6 +432,12 @@ export function TrainingPortal() {
       {error ? (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
+        </p>
+      ) : null}
+
+      {successMessage ? (
+        <p className="rounded-xl border border-primary/20 bg-primary-light/50 px-4 py-3 text-sm text-primary-dark">
+          {successMessage}
         </p>
       ) : null}
 
@@ -575,7 +601,13 @@ export function TrainingPortal() {
                   onSubmit={handleCreateSession}
                   className="grid gap-4 rounded-2xl border border-border bg-card p-6 lg:grid-cols-2"
                 >
-                  <h2 className="text-lg font-bold text-foreground lg:col-span-2">Add session</h2>
+                  <div className="lg:col-span-2">
+                    <h2 className="text-lg font-bold text-foreground">Add session</h2>
+                    <p className="mt-1 text-sm text-muted">
+                      Step 2 of 3 — set date and time, then click Add session. Publish unlocks after
+                      at least one session is saved.
+                    </p>
+                  </div>
                   <label className="block text-sm lg:col-span-2">
                     <span className="font-medium text-foreground">Course</span>
                     <select
@@ -603,17 +635,27 @@ export function TrainingPortal() {
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className="font-medium text-foreground">Starts at</span>
+                    <span className="font-medium text-foreground">Session date</span>
                     <input
                       required
-                      type="datetime-local"
-                      value={sessionStartsAt}
-                      onChange={(e) => setSessionStartsAt(e.target.value)}
+                      type="date"
+                      value={sessionDate}
+                      onChange={(e) => setSessionDate(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="font-medium text-foreground">Session time</span>
+                    <input
+                      required
+                      type="time"
+                      value={sessionTime}
+                      onChange={(e) => setSessionTime(e.target.value)}
                       className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
                     />
                   </label>
                   <label className="block text-sm lg:col-span-2">
-                    <span className="font-medium text-foreground">Zoom link</span>
+                    <span className="font-medium text-foreground">Zoom link (optional for now)</span>
                     <input
                       type="url"
                       value={sessionZoomUrl}
@@ -635,8 +677,9 @@ export function TrainingPortal() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="inline-flex items-center gap-2 self-end rounded-md bg-primary px-4 py-2 text-sm font-bold uppercase tracking-wide text-white"
+                    className="inline-flex items-center gap-2 self-end rounded-md bg-primary px-4 py-2 text-sm font-bold uppercase tracking-wide text-white lg:col-span-2 lg:w-fit"
                   >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Add session
                   </button>
                 </form>
