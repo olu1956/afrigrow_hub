@@ -17,9 +17,9 @@ import {
 } from "@/lib/product-messaging";
 
 export const metadata: Metadata = {
-  title: "Join Free — Early Access",
+  title: "Join Free — Founding Members",
   description:
-    "Join AfriGrow Hub free during early access. AI tools for profiles, marketing, matching, funding, and CRM — no credit card required.",
+    "Become a founding member of AfriGrow Hub. Free early access to AI tools for profiles, marketing, matching, funding, and CRM — no credit card required.",
 };
 
 const benefits = [
@@ -46,13 +46,13 @@ const benefits = [
 ];
 
 const included = [
-  "Free during early access — no credit card required",
+  "Founding membership — free during early access, no credit card",
   "Business profile & directory listing when you reach 40% strength",
   "Access to AI agents for growth tasks",
   "Matching marketplace enquiries",
   "CRM contacts & follow-up tools",
   "Business Academy guides",
-  "Upgrade paths ready when paid plans launch",
+  "Recognised as an early founding member when paid plans launch",
 ];
 
 export default function JoinPage() {
@@ -64,7 +64,7 @@ export default function JoinPage() {
             {FREE_LAUNCH_BADGE}
           </p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Join AfriGrow Hub — free early access
+            Join as a founding member
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted">
             {FREE_LAUNCH_JOIN_LINE}

@@ -35,8 +35,9 @@ on conflict (email) do nothing;
 
 | Field | Value |
 |--------|--------|
-| Site URL | `https://afrigrow.app` |
-| Redirect URLs | `https://afrigrow.app/auth/callback` |
+| Site URL | `https://www.afrigrow.app` |
+| Redirect URLs | `https://www.afrigrow.app/auth/callback` |
+| | `https://afrigrow.app/auth/callback` |
 | | `http://localhost:3000/auth/callback` (for local dev) |
 
 **Authentication → Providers:** enable Email; optional Google OAuth (add production redirect URLs).
@@ -79,7 +80,7 @@ git push -u origin main
 |------|--------|
 | `NEXT_PUBLIC_SUPABASE_URL` | From Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | From Supabase |
-| `NEXT_PUBLIC_SITE_URL` | `https://afrigrow.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://www.afrigrow.app` |
 | `PLATFORM_ADMIN_EMAILS` | Your login email(s), comma-separated |
 | `SUPABASE_SERVICE_ROLE_KEY` | From Supabase (secret) |
 
@@ -109,7 +110,7 @@ git push -u origin main
 4. Wait for DNS (often 5–60 minutes; up to 48h)
 5. Vercel issues **SSL** automatically
 
-Update `NEXT_PUBLIC_SITE_URL` to `https://afrigrow.app` and **Redeploy** if you deployed before the domain was set.
+Update `NEXT_PUBLIC_SITE_URL` to `https://www.afrigrow.app` and **Redeploy** if you deployed before the domain was set.
 
 ---
 

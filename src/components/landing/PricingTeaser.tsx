@@ -21,7 +21,8 @@ const plans = [
     name: "Growth",
     price: "Free",
     period: "during early access",
-    description: "All Growth features unlocked while we test the market with real SMEs.",
+    description:
+      "All Growth features unlocked for founding members while we test the market with real SMEs.",
     features: [
       "All 6 AI agents",
       "Unlimited marketing content",

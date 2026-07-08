@@ -1,13 +1,10 @@
 import type { MetadataRoute } from "next";
 import { initiativeLinks } from "@/lib/initiatives-nav";
 import { homeSectionLinks } from "@/lib/home-nav";
-
-function siteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-}
+import { getSiteUrl } from "@/lib/site-url";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = siteUrl();
+  const base = getSiteUrl();
   const now = new Date();
 
   const staticPages = [

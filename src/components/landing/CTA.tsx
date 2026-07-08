@@ -12,11 +12,11 @@ export function CTA() {
             <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-white blur-2xl" />
           </div>
           <h2 className="relative text-3xl font-bold text-white sm:text-4xl">
-            Ready to grow your business?
+            Become a founding member
           </h2>
           <p className="relative mx-auto mt-4 max-w-xl text-lg text-white/80">
-            Join African SMEs testing AfriGrow Hub during free early access — promote,
-            connect, and get funding-ready with AI agents.
+            Join African and Black-owned SMEs building on AfriGrow Hub before premium
+            features launch — promote, connect, and get funding-ready with AI agents.
           </p>
           <p className="relative mx-auto mt-2 max-w-lg text-sm text-white/70">
             {FREE_LAUNCH_CTA_LINE}
@@ -25,7 +25,7 @@ export function CTA() {
             href="/join"
             className="relative mt-8 inline-flex items-center gap-2 rounded-md bg-accent px-8 py-3.5 text-base font-bold uppercase tracking-wide text-white transition hover:bg-accent/90"
           >
-            Join now
+            Join free today
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

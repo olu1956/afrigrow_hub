@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseAuthEnabled } from "@/lib/auth/config";
 import { USERS_PROFILE_TABLE } from "@/lib/database/users-profile";
 import { BUSINESSES_TABLE } from "@/lib/database/businesses";
+import { getAuthCallbackUrl } from "@/lib/site-url";
 
 export type AuthResult = {
   ok: boolean;
@@ -34,7 +35,7 @@ export async function signUpAction(input: {
         business_type: input.businessType,
         country: input.country,
       },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback`,
+      emailRedirectTo: getAuthCallbackUrl(),
     },
   });
 
@@ -107,7 +108,7 @@ export async function resetPasswordAction(email: string): Promise<AuthResult> {
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=/login`,
+    redirectTo: getAuthCallbackUrl("/login"),
   });
 
   if (error) {
