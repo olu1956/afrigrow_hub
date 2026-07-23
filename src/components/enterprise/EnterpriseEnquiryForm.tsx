@@ -7,6 +7,7 @@ import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthInput } from "@/components/auth/AuthInput";
 import { submitEnterpriseEnquiryAction } from "@/lib/auth/enterprise-enquiry-actions";
 import type { EnterpriseEnquirySource } from "@/lib/database/enterprise-enquiries";
+import { siteContact } from "@/lib/site-contact";
 
 const teamSizeOptions = [
   { value: "", label: "Select team size" },
@@ -120,12 +121,23 @@ export function EnterpriseEnquiryForm() {
           </div>
 
           {[
-            { icon: Mail, label: "Email", value: "hello@afrigrowhub.com" },
-            { icon: Phone, label: "Phone", value: "+44 20 7946 0958" },
+            {
+              icon: Mail,
+              label: "Email",
+              value: siteContact.email,
+              href: `mailto:${siteContact.email}`,
+            },
+            {
+              icon: Phone,
+              label: "Phone",
+              value: siteContact.phoneDisplay,
+              href: `tel:${siteContact.phoneTel}`,
+            },
             {
               icon: MapPin,
               label: "Offices",
-              value: "London, UK · Lagos, Nigeria · Nairobi, Kenya",
+              value: siteContact.offices,
+              href: undefined as string | undefined,
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -139,7 +151,16 @@ export function EnterpriseEnquiryForm() {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                  <p className="mt-1 text-sm text-muted">{item.value}</p>
+                  {item.href ? (
+                    <a
+                      href={item.href}
+                      className="mt-1 block text-sm text-muted transition hover:text-primary"
+                    >
+                      {item.value}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted">{item.value}</p>
+                  )}
                 </div>
               </div>
             );
