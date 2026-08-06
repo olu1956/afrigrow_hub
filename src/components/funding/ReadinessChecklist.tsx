@@ -71,7 +71,7 @@ export function ReadinessChecklist({
                       <span>
                         <span
                           className={`text-sm font-medium ${
-                            done ? "text-muted line-through" : "text-foreground"
+                            done ? "text-muted" : "text-foreground"
                           }`}
                         >
                           {item.label}

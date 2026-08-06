@@ -130,7 +130,8 @@ export const readinessItems: ReadinessItem[] = [
   },
 ];
 
-export const defaultCompletedItems = new Set(["r1", "r4", "r5", "r8"]);
+/** Start empty — checklist should reflect real progress, not demo pre-ticks. */
+export const defaultCompletedItems = new Set<string>();
 
 export const fundingOpportunities: FundingOpportunityDefinition[] = [
   {

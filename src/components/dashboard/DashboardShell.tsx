@@ -22,7 +22,6 @@ export function DashboardShell({
   const { isPlatformAdmin: sessionIsPlatformAdmin, hydrated, authEnabled } = useSession();
   const [showAdmin, setShowAdmin] = useState(serverIsPlatformAdmin);
 
-  // Once admin access is confirmed, keep it for this dashboard session (never flip back off).
   useEffect(() => {
     if (serverIsPlatformAdmin || sessionIsPlatformAdmin) {
       setShowAdmin(true);
@@ -55,19 +54,24 @@ export function DashboardShell({
 
   const headerTitle = current?.label ?? "Dashboard";
 
+  /**
+   * Same scroll model as the public SitePageLayout:
+   * one document-level scroll. Sidebar is fixed (out of flow).
+   * No overflow-y on main, no sticky sidebar.
+   */
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="afrigrow-dashboard min-h-dvh bg-background">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         showAdmin={showAdmin}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-col md:pl-72">
         <DashboardHeader
           onMenuClick={() => setSidebarOpen(true)}
           title={headerTitle}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1">
           <DashboardPageCanvas variant="marketing">{children}</DashboardPageCanvas>
         </main>
         <DashboardFooter />

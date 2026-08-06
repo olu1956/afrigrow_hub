@@ -260,31 +260,29 @@ export function FundingAgent() {
       }
     >
       <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-2">
-          <div className="lg:sticky lg:top-24">
-            <FundingProfileForm
-              businessStage={businessStage}
-              annualRevenue={annualRevenue}
-              fundingNeeded={fundingNeeded}
-              fundingPurpose={fundingPurpose}
-              recommendations={recommendations}
-              currencySymbol={currency.symbol}
-              currencyHint={currencyHint}
-              countryLabel={businessCountry || undefined}
-              disabled={!authEnabled || Boolean(setupWarning) || loadingProfile}
-              saving={savingProfile}
-              onBusinessStageChange={setBusinessStage}
-              onAnnualRevenueChange={setAnnualRevenue}
-              onFundingNeededChange={setFundingNeeded}
-              onFundingPurposeChange={setFundingPurpose}
-              onSubmit={handleSaveProfile}
-            />
-            <ReadinessChecklist
-              completed={completed}
-              onToggle={toggleItem}
-              readiness={readiness}
-            />
-          </div>
+        <div className="space-y-6 lg:col-span-2">
+          <FundingProfileForm
+            businessStage={businessStage}
+            annualRevenue={annualRevenue}
+            fundingNeeded={fundingNeeded}
+            fundingPurpose={fundingPurpose}
+            recommendations={recommendations}
+            currencySymbol={currency.symbol}
+            currencyHint={currencyHint}
+            countryLabel={businessCountry || undefined}
+            disabled={!authEnabled || Boolean(setupWarning) || loadingProfile}
+            saving={savingProfile}
+            onBusinessStageChange={setBusinessStage}
+            onAnnualRevenueChange={setAnnualRevenue}
+            onFundingNeededChange={setFundingNeeded}
+            onFundingPurposeChange={setFundingPurpose}
+            onSubmit={handleSaveProfile}
+          />
+          <ReadinessChecklist
+            completed={completed}
+            onToggle={toggleItem}
+            readiness={readiness}
+          />
         </div>
 
         <div className="space-y-5 lg:col-span-3">

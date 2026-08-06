@@ -629,7 +629,7 @@ export function ProfileAgent() {
         <div
           className={`space-y-5 lg:col-span-2 ${activeTab === "edit" ? "hidden lg:block" : ""}`}
         >
-          <div className="lg:sticky lg:top-24 lg:space-y-5">
+          <div className="lg:space-y-5">
             <ProfileStrengthMeter
               strength={strength}
               profile={profile}

@@ -56,8 +56,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} h-full scroll-smooth`} suppressHydrationWarning>
-      <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
+    <html lang="en" className={`${dmSans.variable}`} suppressHydrationWarning>
+      <body className="min-h-dvh antialiased" suppressHydrationWarning>
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>

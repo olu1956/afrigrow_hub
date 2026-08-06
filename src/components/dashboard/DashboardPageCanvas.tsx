@@ -31,7 +31,7 @@ export function DashboardPageCanvas({
   const styles = variantStyles[variant];
 
   return (
-    <div className="relative -m-4 min-h-full sm:-m-6 lg:-m-8">
+    <div className="relative min-h-full sm:min-h-0">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${styles.base}`}
         aria-hidden

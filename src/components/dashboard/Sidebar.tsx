@@ -139,7 +139,8 @@ export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-card md:flex">
+      {/* Fixed sidebar — stays put without sticky scroll chaining on the page. */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-border bg-card md:flex">
         {content}
       </aside>
 

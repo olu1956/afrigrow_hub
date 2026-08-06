@@ -38,7 +38,7 @@ export function DashboardHeader({ onMenuClick, title = "Overview" }: DashboardHe
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+    <header className="z-40 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
       <button
         type="button"
         onClick={onMenuClick}
