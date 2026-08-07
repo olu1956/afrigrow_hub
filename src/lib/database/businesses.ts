@@ -22,6 +22,8 @@ export type Business = {
   social_links: SocialLinks;
   profile_score: number;
   is_verified: boolean;
+  /** Admin moderation: when true, excluded from the public directory. */
+  directory_hidden?: boolean;
   created_at: string;
   updated_at: string;
 };

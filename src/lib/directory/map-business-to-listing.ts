@@ -52,7 +52,11 @@ function formatMemberSince(iso: string): string {
 
 export function businessToDirectoryListing(business: Business): DirectoryListing | null {
   const name = business.business_name.trim();
-  if (!name || business.profile_score < DIRECTORY_MIN_PROFILE_SCORE) {
+  if (
+    !name ||
+    business.profile_score < DIRECTORY_MIN_PROFILE_SCORE ||
+    business.directory_hidden
+  ) {
     return null;
   }
 

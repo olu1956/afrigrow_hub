@@ -138,6 +138,12 @@ export const adminNav: NavItem[] = [
     description: "Contact, partner & Enterprise",
   },
   {
+    label: "Directory",
+    href: "/dashboard/admin/directory",
+    icon: Building2,
+    description: "Unlist or remove businesses",
+  },
+  {
     label: "Business guides",
     href: "/dashboard/admin/guides",
     icon: BookOpen,

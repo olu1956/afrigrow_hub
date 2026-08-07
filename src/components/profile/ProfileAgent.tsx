@@ -225,16 +225,20 @@ export function ProfileAgent() {
       const newStrength = calculateProfileStrength(result.profile ?? profile);
       const previousSaved = savedStrength ?? 0;
       setSavedStrength(newStrength);
-      setListedInDirectory(newStrength >= DIRECTORY_MIN_PROFILE_SCORE);
 
-      if (
-        newStrength >= DIRECTORY_MIN_PROFILE_SCORE &&
-        previousSaved < DIRECTORY_MIN_PROFILE_SCORE
-      ) {
+      const directoryStatus = await getMyDirectoryStatusAction();
+      const nowListed = directoryStatus.ok
+        ? directoryStatus.listed
+        : newStrength >= DIRECTORY_MIN_PROFILE_SCORE;
+      setListedInDirectory(nowListed);
+
+      if (nowListed && previousSaved < DIRECTORY_MIN_PROFILE_SCORE) {
         setDirectoryNotice(
           "Your profile is now live in the Business Directory — other members can discover you.",
         );
-      } else if (newStrength >= DIRECTORY_MIN_PROFILE_SCORE) {
+      } else if (nowListed) {
+        setDirectoryNotice(null);
+      } else if (directoryStatus.ok && !directoryStatus.listed) {
         setDirectoryNotice(null);
       }
 
