@@ -39,3 +39,67 @@ create policy "Platform admins can delete businesses"
   for delete
   to authenticated
   using (public.is_platform_admin());
+
+create or replace function public.admin_set_directory_hidden(
+  p_business_id uuid,
+  p_hidden boolean
+)
+returns public.businesses
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row public.businesses;
+begin
+  if auth.uid() is null or not public.is_platform_admin() then
+    raise exception 'not authorized';
+  end if;
+
+  update public.businesses
+  set directory_hidden = p_hidden
+  where id = p_business_id
+  returning * into v_row;
+
+  if v_row.id is null then
+    raise exception 'business not found';
+  end if;
+
+  return v_row;
+end;
+$$;
+
+revoke all on function public.admin_set_directory_hidden(uuid, boolean) from public;
+grant execute on function public.admin_set_directory_hidden(uuid, boolean) to authenticated;
+
+create or replace function public.admin_remove_directory_business(p_business_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_user_id uuid;
+begin
+  if auth.uid() is null or not public.is_platform_admin() then
+    raise exception 'not authorized';
+  end if;
+
+  select user_id into v_user_id
+  from public.businesses
+  where id = p_business_id;
+
+  if v_user_id is null then
+    raise exception 'business not found';
+  end if;
+
+  if v_user_id = auth.uid() then
+    raise exception 'cannot remove your own admin account';
+  end if;
+
+  delete from auth.users where id = v_user_id;
+end;
+$$;
+
+revoke all on function public.admin_remove_directory_business(uuid) from public;
+grant execute on function public.admin_remove_directory_business(uuid) to authenticated;

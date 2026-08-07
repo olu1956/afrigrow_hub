@@ -41,6 +41,14 @@ function isMissingDirectoryHiddenColumn(message: string): boolean {
   );
 }
 
+function isMissingRpc(message: string): boolean {
+  return (
+    /Could not find the function/i.test(message) ||
+    /function .* does not exist/i.test(message) ||
+    /schema cache/i.test(message)
+  );
+}
+
 function mapBusiness(row: Business & { directory_hidden?: boolean | null }): AdminDirectoryBusiness {
   const rawName = row.business_name?.trim() || "";
   const businessName = rawName || "Untitled business";
@@ -87,7 +95,17 @@ async function assertPlatformAdmin() {
 }
 
 function moderationSetupWarning(): string {
-  return "Directory moderation is not fully set up yet. Run supabase/scripts/setup_directory_moderation.sql in the Supabase SQL Editor, then refresh.";
+  return "Directory moderation RPCs are missing. Re-run supabase/scripts/setup_directory_moderation.sql in the Supabase SQL Editor, then try again.";
+}
+
+function formatModerationError(message: string): string {
+  if (/not authorized/i.test(message)) {
+    return "Not authorized in the database. Run supabase/scripts/promote_platform_admin.sql with your login email, then try again.";
+  }
+  if (isMissingDirectoryHiddenColumn(message) || isMissingRpc(message)) {
+    return moderationSetupWarning();
+  }
+  return message;
 }
 
 export async function getAdminDirectoryBusinessesAction(): Promise<AdminDirectoryListResult> {
@@ -163,19 +181,82 @@ export async function setDirectoryHiddenAction(input: {
     return { ok: false, error: "Missing business id." };
   }
 
-  const adminClient = createAdminClient();
-  const queryClient = adminClient ?? auth.supabase;
+  // 1) Preferred: security-definer RPC (works without service role when DB admin is set).
+  const { data: rpcRow, error: rpcError } = await auth.supabase.rpc(
+    "admin_set_directory_hidden",
+    {
+      p_business_id: businessId,
+      p_hidden: input.hidden,
+    },
+  );
 
-  const { error } = await queryClient
+  if (!rpcError) {
+    const hidden = Boolean(
+      (rpcRow as { directory_hidden?: boolean } | null)?.directory_hidden ?? input.hidden,
+    );
+    if (hidden !== input.hidden) {
+      return {
+        ok: false,
+        error: "Unlist did not apply. Re-run setup_directory_moderation.sql and try again.",
+      };
+    }
+    revalidatePath("/dashboard/directory");
+    revalidatePath("/dashboard/admin/directory");
+    return { ok: true };
+  }
+
+  const canFallback =
+    isMissingRpc(rpcError.message) || /not authorized/i.test(rpcError.message);
+  if (!canFallback) {
+    return { ok: false, error: formatModerationError(rpcError.message) };
+  }
+
+  // 2) Service-role update (bypasses RLS) — verify a row was returned.
+  const adminClient = createAdminClient();
+  if (adminClient) {
+    const { data, error } = await adminClient
+      .from(BUSINESSES_TABLE)
+      .update({ directory_hidden: input.hidden })
+      .eq("id", businessId)
+      .select("id, directory_hidden")
+      .maybeSingle();
+
+    if (error) {
+      return { ok: false, error: formatModerationError(error.message) };
+    }
+    if (!data) {
+      return { ok: false, error: "Business not found." };
+    }
+    if (Boolean(data.directory_hidden) !== input.hidden) {
+      return { ok: false, error: "Unlist did not apply in the database." };
+    }
+
+    revalidatePath("/dashboard/directory");
+    revalidatePath("/dashboard/admin/directory");
+    return { ok: true };
+  }
+
+  // 3) Direct update — must select + verify (RLS can silently update 0 rows).
+  const { data, error } = await auth.supabase
     .from(BUSINESSES_TABLE)
     .update({ directory_hidden: input.hidden })
-    .eq("id", businessId);
+    .eq("id", businessId)
+    .select("id, directory_hidden")
+    .maybeSingle();
 
   if (error) {
-    if (isMissingDirectoryHiddenColumn(error.message)) {
-      return { ok: false, error: moderationSetupWarning() };
-    }
-    return { ok: false, error: error.message };
+    return { ok: false, error: formatModerationError(error.message || rpcError.message) };
+  }
+
+  if (!data) {
+    return {
+      ok: false,
+      error: formatModerationError(rpcError.message || "not authorized"),
+    };
+  }
+
+  if (Boolean(data.directory_hidden) !== input.hidden) {
+    return { ok: false, error: "Unlist did not apply in the database." };
   }
 
   revalidatePath("/dashboard/directory");
@@ -200,16 +281,10 @@ export async function removeDirectoryBusinessAction(input: {
     return { ok: false, error: "Missing business id." };
   }
 
+  // Load target first (for self-delete guard + existence check).
   const adminClient = createAdminClient();
-  if (!adminClient) {
-    return {
-      ok: false,
-      error:
-        "Remove requires SUPABASE_SERVICE_ROLE_KEY on the server (to delete the auth user). Unlist still works without it.",
-    };
-  }
-
-  const { data: business, error: loadError } = await adminClient
+  const reader = adminClient ?? auth.supabase;
+  const { data: business, error: loadError } = await reader
     .from(BUSINESSES_TABLE)
     .select("id, user_id, business_name")
     .eq("id", businessId)
@@ -218,21 +293,51 @@ export async function removeDirectoryBusinessAction(input: {
   if (loadError) {
     return { ok: false, error: loadError.message };
   }
-
   if (!business) {
     return { ok: false, error: "Business not found." };
   }
-
   if (business.user_id === auth.user.id) {
     return { ok: false, error: "You cannot remove your own admin account from here." };
   }
 
-  const { error: deleteUserError } = await adminClient.auth.admin.deleteUser(business.user_id);
-  if (deleteUserError) {
-    return { ok: false, error: deleteUserError.message };
+  // 1) Preferred: security-definer RPC deletes auth.users (cascades business).
+  const { error: rpcError } = await auth.supabase.rpc("admin_remove_directory_business", {
+    p_business_id: businessId,
+  });
+
+  if (!rpcError) {
+    const { data: stillThere } = await reader
+      .from(BUSINESSES_TABLE)
+      .select("id")
+      .eq("id", businessId)
+      .maybeSingle();
+
+    if (stillThere) {
+      return {
+        ok: false,
+        error: "Remove reported success but the business is still present. Check Supabase logs.",
+      };
+    }
+
+    revalidatePath("/dashboard/directory");
+    revalidatePath("/dashboard/admin/directory");
+    return { ok: true };
   }
 
-  revalidatePath("/dashboard/directory");
-  revalidatePath("/dashboard/admin/directory");
-  return { ok: true };
+  // 2) Fallback: Auth Admin API via service role.
+  if (adminClient) {
+    const { error: deleteUserError } = await adminClient.auth.admin.deleteUser(business.user_id);
+    if (deleteUserError) {
+      return { ok: false, error: formatModerationError(deleteUserError.message) };
+    }
+
+    revalidatePath("/dashboard/directory");
+    revalidatePath("/dashboard/admin/directory");
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    error: formatModerationError(rpcError.message),
+  };
 }
