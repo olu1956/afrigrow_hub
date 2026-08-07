@@ -182,24 +182,27 @@ export async function setDirectoryHiddenAction(input: {
   }
 
   // 1) Preferred: security-definer RPC (works without service role when DB admin is set).
-  const { data: rpcRow, error: rpcError } = await auth.supabase.rpc(
-    "admin_set_directory_hidden",
-    {
-      p_business_id: businessId,
-      p_hidden: input.hidden,
-    },
-  );
+  const { error: rpcError } = await auth.supabase.rpc("admin_set_directory_hidden", {
+    p_business_id: businessId,
+    p_hidden: input.hidden,
+  });
 
   if (!rpcError) {
-    const hidden = Boolean(
-      (rpcRow as { directory_hidden?: boolean } | null)?.directory_hidden ?? input.hidden,
-    );
-    if (hidden !== input.hidden) {
+    const { data: verified } = await auth.supabase
+      .from(BUSINESSES_TABLE)
+      .select("id, directory_hidden")
+      .eq("id", businessId)
+      .maybeSingle();
+
+    // Admin may not see other users' rows without service role — treat RPC success as ok
+    // when verify is blocked; otherwise require the flag to match.
+    if (verified && Boolean(verified.directory_hidden) !== input.hidden) {
       return {
         ok: false,
         error: "Unlist did not apply. Re-run setup_directory_moderation.sql and try again.",
       };
     }
+
     revalidatePath("/dashboard/directory");
     revalidatePath("/dashboard/admin/directory");
     return { ok: true };

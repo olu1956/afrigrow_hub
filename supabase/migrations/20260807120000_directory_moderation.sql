@@ -1,5 +1,4 @@
--- Directory moderation: allow platform admins to unlist businesses without
--- wiping profile_score, and keep unlisted rows out of public directory reads.
+-- Directory moderation: unlist/remove via security-definer RPCs.
 
 alter table public.businesses
   add column if not exists directory_hidden boolean not null default false;
@@ -40,17 +39,18 @@ create policy "Platform admins can delete businesses"
   to authenticated
   using (public.is_platform_admin());
 
+drop function if exists public.admin_set_directory_hidden(uuid, boolean);
+drop function if exists public.admin_remove_directory_business(uuid);
+
 create or replace function public.admin_set_directory_hidden(
   p_business_id uuid,
   p_hidden boolean
 )
-returns public.businesses
+returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
-declare
-  v_row public.businesses;
+as $fn$
 begin
   if auth.uid() is null or not public.is_platform_admin() then
     raise exception 'not authorized';
@@ -58,16 +58,13 @@ begin
 
   update public.businesses
   set directory_hidden = p_hidden
-  where id = p_business_id
-  returning * into v_row;
+  where id = p_business_id;
 
-  if v_row.id is null then
+  if not found then
     raise exception 'business not found';
   end if;
-
-  return v_row;
 end;
-$$;
+$fn$;
 
 revoke all on function public.admin_set_directory_hidden(uuid, boolean) from public;
 grant execute on function public.admin_set_directory_hidden(uuid, boolean) to authenticated;
@@ -76,8 +73,8 @@ create or replace function public.admin_remove_directory_business(p_business_id 
 returns void
 language plpgsql
 security definer
-set search_path = public, auth
-as $$
+set search_path = public
+as $fn$
 declare
   v_user_id uuid;
 begin
@@ -99,7 +96,7 @@ begin
 
   delete from auth.users where id = v_user_id;
 end;
-$$;
+$fn$;
 
 revoke all on function public.admin_remove_directory_business(uuid) from public;
 grant execute on function public.admin_remove_directory_business(uuid) to authenticated;

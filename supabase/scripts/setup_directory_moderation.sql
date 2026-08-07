@@ -1,5 +1,5 @@
 -- Run in Supabase Dashboard → SQL Editor to enable Directory moderation.
--- Safe to re-run.
+-- Safe to re-run. Select ALL of this file, then Run.
 
 alter table public.businesses
   add column if not exists directory_hidden boolean not null default false;
@@ -40,21 +40,18 @@ create policy "Platform admins can delete businesses"
   to authenticated
   using (public.is_platform_admin());
 
--- Prefer these RPCs from the app: they run as security definer and avoid
--- silent zero-row RLS updates when the session user is admin in-app but
--- the PostgREST update is filtered.
+drop function if exists public.admin_set_directory_hidden(uuid, boolean);
+drop function if exists public.admin_remove_directory_business(uuid);
 
 create or replace function public.admin_set_directory_hidden(
   p_business_id uuid,
   p_hidden boolean
 )
-returns public.businesses
+returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
-declare
-  v_row public.businesses;
+as $fn$
 begin
   if auth.uid() is null or not public.is_platform_admin() then
     raise exception 'not authorized';
@@ -62,16 +59,13 @@ begin
 
   update public.businesses
   set directory_hidden = p_hidden
-  where id = p_business_id
-  returning * into v_row;
+  where id = p_business_id;
 
-  if v_row.id is null then
+  if not found then
     raise exception 'business not found';
   end if;
-
-  return v_row;
 end;
-$$;
+$fn$;
 
 revoke all on function public.admin_set_directory_hidden(uuid, boolean) from public;
 grant execute on function public.admin_set_directory_hidden(uuid, boolean) to authenticated;
@@ -80,8 +74,8 @@ create or replace function public.admin_remove_directory_business(p_business_id 
 returns void
 language plpgsql
 security definer
-set search_path = public, auth
-as $$
+set search_path = public
+as $fn$
 declare
   v_user_id uuid;
 begin
@@ -101,10 +95,9 @@ begin
     raise exception 'cannot remove your own admin account';
   end if;
 
-  -- Cascades businesses and related rows via FK on auth.users.
   delete from auth.users where id = v_user_id;
 end;
-$$;
+$fn$;
 
 revoke all on function public.admin_remove_directory_business(uuid) from public;
 grant execute on function public.admin_remove_directory_business(uuid) to authenticated;
