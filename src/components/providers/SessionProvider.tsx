@@ -18,7 +18,8 @@ import { fetchUserBusiness } from "@/lib/database/fetch-user-business";
 import { createClient } from "@/lib/supabase/client";
 import {
   clearSessionPreview,
-  defaultSession,
+  emptySession,
+  isDemoSession,
   loadSessionPreview,
   saveSessionPreview,
   type SessionPreview,
@@ -32,6 +33,7 @@ type SessionContextValue = {
         Pick<SessionPreview, "plan" | "location" | "country" | "role" | "businessType">
       >,
   ) => void;
+  refreshSession: () => Promise<void>;
   signOut: () => Promise<void>;
   hydrated: boolean;
   authEnabled: boolean;
@@ -53,9 +55,13 @@ async function buildSessionFromAuthUser(user: User): Promise<SessionPreview> {
   }
 }
 
+function sanitizeSession(next: SessionPreview): SessionPreview {
+  return isDemoSession(next) ? emptySession() : next;
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const authEnabled = isSupabaseAuthEnabled();
-  const [session, setSessionState] = useState<SessionPreview>(defaultSession);
+  const [session, setSessionState] = useState<SessionPreview>(emptySession);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -77,7 +83,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const data = await getSessionDataAction();
       if (!active || !data) return false;
 
-      setSessionState(data.session);
+      setSessionState(sanitizeSession(data.session));
       setIsPlatformAdmin((prev) => data.isPlatformAdmin || prev);
       setAuthEmail(data.authEmail);
       saveSessionPreview(data.session);
@@ -90,7 +96,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!active) return;
 
       if (data) {
-        setSessionState(data.session);
+        setSessionState(sanitizeSession(data.session));
         setIsPlatformAdmin((prev) => data.isPlatformAdmin || prev);
         setAuthEmail(data.authEmail);
         saveSessionPreview(data.session);
@@ -99,9 +105,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       const next = await buildSessionFromAuthUser(user);
       if (!active) return;
-      setSessionState(next);
+      setSessionState(sanitizeSession(next));
       setAuthEmail(user.email ?? "");
       saveSessionPreview(next);
+    }
+
+    async function resetToSignedOut() {
+      clearSessionPreview();
+      setSessionState(emptySession());
+      setIsPlatformAdmin(false);
+      setAuthEmail("");
     }
 
     async function init() {
@@ -129,15 +142,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (user) {
           await applyAuthenticatedUser(user);
         } else {
-          clearSessionPreview();
-          setSessionState(defaultSession());
-          setIsPlatformAdmin(false);
-          setAuthEmail("");
+          await resetToSignedOut();
         }
 
         setHydrated(true);
       } catch {
-        if (active) setHydrated(true);
+        if (active) {
+          setSessionState(emptySession());
+          setHydrated(true);
+        }
       }
     }
 
@@ -161,11 +174,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (event === "SIGNED_OUT") {
-        clearSessionPreview();
-        setSessionState(defaultSession());
-        setIsPlatformAdmin(false);
-        setAuthEmail("");
-        setHydrated(true);
+        void resetToSignedOut().then(() => {
+          if (active) setHydrated(true);
+        });
       }
     });
 
@@ -184,9 +195,49 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     ) => {
       const next = saveSessionPreview(data);
       setSessionState(next);
+      setAuthEmail(data.email);
     },
     [],
   );
+
+  const refreshSession = useCallback(async () => {
+    if (!authEnabled) {
+      const preview = loadSessionPreview();
+      setSessionState(preview);
+      setIsPlatformAdmin(isPlatformAdminEmail(preview.email));
+      setAuthEmail(preview.email);
+      setHydrated(true);
+      return;
+    }
+
+    const data = await getSessionDataAction();
+    if (data) {
+      setSessionState(sanitizeSession(data.session));
+      setIsPlatformAdmin((prev) => data.isPlatformAdmin || prev);
+      setAuthEmail(data.authEmail);
+      saveSessionPreview(data.session);
+      setHydrated(true);
+      return;
+    }
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const next = await buildSessionFromAuthUser(user);
+      setSessionState(sanitizeSession(next));
+      setAuthEmail(user.email ?? "");
+      saveSessionPreview(next);
+    } else {
+      clearSessionPreview();
+      setSessionState(emptySession());
+      setIsPlatformAdmin(false);
+      setAuthEmail("");
+    }
+    setHydrated(true);
+  }, [authEnabled]);
 
   const signOut = useCallback(async () => {
     if (authEnabled) {
@@ -194,14 +245,32 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut();
     }
     clearSessionPreview();
-    setSessionState(defaultSession());
+    setSessionState(emptySession());
     setIsPlatformAdmin(false);
     setAuthEmail("");
   }, [authEnabled]);
 
   const value = useMemo(
-    () => ({ session, setSession, signOut, hydrated, authEnabled, isPlatformAdmin, authEmail }),
-    [session, setSession, signOut, hydrated, authEnabled, isPlatformAdmin, authEmail],
+    () => ({
+      session,
+      setSession,
+      refreshSession,
+      signOut,
+      hydrated,
+      authEnabled,
+      isPlatformAdmin,
+      authEmail,
+    }),
+    [
+      session,
+      setSession,
+      refreshSession,
+      signOut,
+      hydrated,
+      authEnabled,
+      isPlatformAdmin,
+      authEmail,
+    ],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

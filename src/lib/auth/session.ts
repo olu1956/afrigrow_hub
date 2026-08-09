@@ -2,7 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import type { Business } from "@/lib/database/businesses";
 import type { UsersProfile } from "@/lib/database/users-profile";
 import {
-  defaultSession,
+  emptySession,
   initialsFromName,
   type SessionPreview,
 } from "@/lib/session-preview";
@@ -44,7 +44,7 @@ export function sessionFromUser(
   const location =
     business?.city?.trim() && country
       ? `${business.city}, ${country}`
-      : country || meta.location?.trim() || defaultSession().location;
+      : country || meta.location?.trim() || "";
 
   return {
     owner,
@@ -60,7 +60,6 @@ export function sessionFromUser(
 }
 
 export function sessionFromEmail(email: string, owner?: string): SessionPreview {
-  const base = defaultSession();
   const resolvedOwner =
     owner?.trim() ||
     email
@@ -70,7 +69,7 @@ export function sessionFromEmail(email: string, owner?: string): SessionPreview 
     "User";
 
   return {
-    ...base,
+    ...emptySession(),
     owner: resolvedOwner,
     name: `${resolvedOwner}'s Business`,
     email,

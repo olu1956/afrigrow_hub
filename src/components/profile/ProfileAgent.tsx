@@ -41,7 +41,7 @@ import {
 } from "@/lib/profile-data";
 import { CountrySelect } from "@/components/dashboard/CountrySelect";
 import { normalizeCountrySelectValue } from "@/lib/countries";
-import { defaultSession } from "@/lib/session-preview";
+import { emptySession } from "@/lib/session-preview";
 
 function Field({
   label,
@@ -65,7 +65,7 @@ export function ProfileAgent() {
   const { session, hydrated, setSession, authEnabled } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<BusinessProfile>(() =>
-    buildDefaultProfile(defaultSession()),
+    buildDefaultProfile(emptySession()),
   );
   const [newService, setNewService] = useState("");
   const [aiLoading, setAiLoading] = useState<string | null>(null);

@@ -183,8 +183,12 @@ export default function DashboardOverviewPage() {
 
   return (
     <DashboardPageLayout
-      title={`Welcome back, ${business.owner.split(" ")[0]}`}
-      description={`Here's what's happening with ${business.name} today.`}
+      title={`Welcome back${business.owner.trim() ? `, ${business.owner.split(" ")[0]}` : ""}`}
+      description={
+        business.name.trim()
+          ? `Here's what's happening with ${business.name} today.`
+          : "Here's what's happening with your business today."
+      }
       action={
         <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary-light px-3 py-1.5 text-xs font-semibold text-primary">
           <Sparkles className="h-3.5 w-3.5" />

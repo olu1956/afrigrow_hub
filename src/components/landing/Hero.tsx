@@ -55,7 +55,7 @@ export function Hero() {
     ? "Amara's Textiles"
     : previewLoading
       ? "…"
-      : business.name || business.owner;
+      : business.name || business.owner || "your business";
 
   const planLabel = showDemo
     ? "Growth plan"

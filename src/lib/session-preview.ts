@@ -21,7 +21,25 @@ export function initialsFromName(name: string): string {
     .slice(0, 2);
 }
 
-export function defaultSession(): SessionPreview {
+/** Neutral blank session — never an identity for a signed-in user. */
+export function emptySession(): SessionPreview {
+  return {
+    owner: "",
+    name: "",
+    email: "",
+    plan: "Growth",
+    location: "",
+    country: "",
+    role: "owner",
+    initials: "",
+  };
+}
+
+/**
+ * Marketing / offline-preview demo only. Must never be shown as a real
+ * authenticated account on the dashboard.
+ */
+export function demoSession(): SessionPreview {
   return {
     owner: "Amara Okonkwo",
     name: "Amara's Textiles",
@@ -34,15 +52,36 @@ export function defaultSession(): SessionPreview {
   };
 }
 
+/** @deprecated Prefer emptySession() or demoSession() explicitly. */
+export function defaultSession(): SessionPreview {
+  return emptySession();
+}
+
+export function isDemoSession(session: SessionPreview): boolean {
+  return (
+    session.email === "hello@amarastextiles.com" ||
+    (session.owner === "Amara Okonkwo" && session.name === "Amara's Textiles")
+  );
+}
+
 export function loadSessionPreview(): SessionPreview {
-  if (typeof window === "undefined") return defaultSession();
+  if (typeof window === "undefined") return emptySession();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultSession(), ...JSON.parse(raw) } as SessionPreview;
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SessionPreview>;
+      const merged = { ...emptySession(), ...parsed } as SessionPreview;
+      // Strip legacy Amara defaults that were persisted before the fix.
+      if (isDemoSession(merged)) {
+        clearSessionPreview();
+        return emptySession();
+      }
+      return merged;
+    }
   } catch {
     // ignore corrupt storage
   }
-  return defaultSession();
+  return emptySession();
 }
 
 export function saveSessionPreview(
@@ -61,6 +100,10 @@ export function saveSessionPreview(
     initials: initialsFromName(data.owner),
   };
   if (typeof window !== "undefined") {
+    if (isDemoSession(session)) {
+      clearSessionPreview();
+      return emptySession();
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   }
   return session;

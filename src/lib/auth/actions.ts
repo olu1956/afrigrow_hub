@@ -44,7 +44,7 @@ export async function signUpAction(input: {
   }
 
   if (data.user) {
-    await supabase.from(USERS_PROFILE_TABLE).upsert(
+    const { error: profileError } = await supabase.from(USERS_PROFILE_TABLE).upsert(
       {
         user_id: data.user.id,
         full_name: input.fullName,
@@ -55,7 +55,7 @@ export async function signUpAction(input: {
       { onConflict: "user_id" },
     );
 
-    await supabase.from(BUSINESSES_TABLE).upsert(
+    const { error: businessError } = await supabase.from(BUSINESSES_TABLE).upsert(
       {
         user_id: data.user.id,
         business_name: input.businessName,
@@ -65,6 +65,15 @@ export async function signUpAction(input: {
       },
       { onConflict: "user_id" },
     );
+
+    // Auth + user_metadata still succeed even if profile rows fail (RLS, etc.).
+    // Log so production debugging does not silently leave an empty business record.
+    if (profileError) {
+      console.error("signUp profile upsert failed:", profileError.message);
+    }
+    if (businessError) {
+      console.error("signUp business upsert failed:", businessError.message);
+    }
   }
 
   return {

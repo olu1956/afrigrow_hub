@@ -33,7 +33,7 @@ const businessTypes = [
 
 export function SignUpForm() {
   const router = useRouter();
-  const { setSession, authEnabled } = useSession();
+  const { setSession, refreshSession, authEnabled } = useSession();
   const [fullName, setFullName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState("");
@@ -106,8 +106,11 @@ export function SignUpForm() {
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      // Persist the registration identity immediately so the dashboard never
+      // falls back to the Amara demo while the auth client catches up.
+      setSession(payload);
+      await refreshSession();
+      window.location.assign("/dashboard");
       return;
     }
 
