@@ -166,15 +166,3 @@ export const bottomNav: NavItem[] = [
 ];
 
 export const allNavItems: NavItem[] = [...mainNav, ...bottomNav];
-
-/** Landing-page / offline demo only — never use as a signed-in dashboard identity. */
-export const mockBusiness = {
-  name: "Amara's Textiles",
-  owner: "Amara Okonkwo",
-  email: "hello@amarastextiles.com",
-  plan: "Growth",
-  location: "Lagos, Nigeria",
-  country: "Nigeria",
-  role: "owner",
-  initials: "AO",
-} as const;

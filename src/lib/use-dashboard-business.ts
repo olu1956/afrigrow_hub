@@ -1,13 +1,11 @@
 import type { SessionPreview } from "@/lib/session-preview";
-import { emptySession, isDemoSession } from "@/lib/session-preview";
+import { emptySession } from "@/lib/session-preview";
 import { useSession } from "@/components/providers/SessionProvider";
 
 /** Shown briefly while the real Supabase session is loading. */
 export const loadingSession: SessionPreview = emptySession();
 
-/**
- * Dashboard display session. Never shows the Amara demo user when Supabase auth is on.
- */
+/** Dashboard display session for the signed-in (or preview) business. */
 export function useDashboardBusiness(): {
   business: SessionPreview;
   loading: boolean;
@@ -17,10 +15,6 @@ export function useDashboardBusiness(): {
   if (authEnabled) {
     if (!hydrated) {
       return { business: loadingSession, loading: true };
-    }
-    // Guard against any leftover demo identity after auth is enabled.
-    if (isDemoSession(session)) {
-      return { business: emptySession(), loading: true };
     }
     return { business: session, loading: false };
   }

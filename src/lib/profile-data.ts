@@ -1,5 +1,5 @@
 import type { SessionPreview } from "@/lib/session-preview";
-import { demoSession } from "@/lib/session-preview";
+import { emptySession } from "@/lib/session-preview";
 
 export type BusinessProfile = {
   businessName: string;
@@ -192,4 +192,4 @@ export function buildAiServiceSuggestions(
 }
 
 /** @deprecated Use buildDefaultProfile(session) instead */
-export const defaultProfile = buildDefaultProfile(demoSession());
+export const defaultProfile = buildDefaultProfile(emptySession());

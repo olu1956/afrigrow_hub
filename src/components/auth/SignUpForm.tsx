@@ -106,8 +106,8 @@ export function SignUpForm() {
         return;
       }
 
-      // Persist the registration identity immediately so the dashboard never
-      // falls back to the Amara demo while the auth client catches up.
+      // Persist registration identity immediately, then hard-navigate so the
+      // session provider remounts with the new auth cookies.
       setSession(payload);
       await refreshSession();
       window.location.assign("/dashboard");

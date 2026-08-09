@@ -55,7 +55,7 @@ export type SortOption = (typeof sortOptions)[number]["value"];
 export const directoryListings: DirectoryListing[] = [
   {
     id: "d1",
-    name: "Amara's Textiles",
+    name: "Lagos Loom Studio",
     tagline: "Premium African fabrics & bespoke tailoring",
     description:
       "Family-run textile business specialising in Ankara, lace, and custom bridal wear. Serving Lagos and nationwide delivery since 2018.",

@@ -52,13 +52,13 @@ export function Hero() {
     : "Your growth dashboard";
 
   const welcomeName = showDemo
-    ? "Amara's Textiles"
+    ? "your business"
     : previewLoading
       ? "…"
       : business.name || business.owner || "your business";
 
   const planLabel = showDemo
-    ? "Growth plan"
+    ? "Free plan"
     : previewLoading
       ? "…"
       : `${business.plan} plan`;

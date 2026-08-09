@@ -132,7 +132,6 @@ Update `NEXT_PUBLIC_SITE_URL` to `https://www.afrigrow.app` and **Redeploy** if 
 | Problem | Fix |
 |---------|-----|
 | Auth redirects to localhost | Set `NEXT_PUBLIC_SITE_URL` + Supabase Site URL to production domain |
-| Dashboard shows demo user “Amara” | Fixed in app: demo identity is no longer used after signup. If it still appears, clear site data for afrigrow.app and redeploy with Supabase env vars set. |
 | Admin pages 403 | Add your email to `PLATFORM_ADMIN_EMAILS` + `platform_admin_allowlist` |
 | Build fails on Vercel | Run `npm run build` locally; fix errors first |
 | OAuth fails | Add exact callback URL in Google Cloud + Supabase |

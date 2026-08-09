@@ -12,6 +12,9 @@ export type SessionPreview = {
 
 const STORAGE_KEY = "afrigrow_session_preview";
 
+/** Old placeholder identity — clear if still present in browser storage. */
+const LEGACY_PLACEHOLDER_EMAIL = "hello@amarastextiles.com";
+
 export function initialsFromName(name: string): string {
   return name
     .split(" ")
@@ -21,7 +24,6 @@ export function initialsFromName(name: string): string {
     .slice(0, 2);
 }
 
-/** Neutral blank session — never an identity for a signed-in user. */
 export function emptySession(): SessionPreview {
   return {
     owner: "",
@@ -35,33 +37,13 @@ export function emptySession(): SessionPreview {
   };
 }
 
-/**
- * Marketing / offline-preview demo only. Must never be shown as a real
- * authenticated account on the dashboard.
- */
-export function demoSession(): SessionPreview {
-  return {
-    owner: "Amara Okonkwo",
-    name: "Amara's Textiles",
-    email: "hello@amarastextiles.com",
-    plan: "Growth",
-    location: "Lagos, Nigeria",
-    country: "Nigeria",
-    role: "owner",
-    initials: "AO",
-  };
-}
-
-/** @deprecated Prefer emptySession() or demoSession() explicitly. */
+/** @deprecated Use emptySession(). */
 export function defaultSession(): SessionPreview {
   return emptySession();
 }
 
-export function isDemoSession(session: SessionPreview): boolean {
-  return (
-    session.email === "hello@amarastextiles.com" ||
-    (session.owner === "Amara Okonkwo" && session.name === "Amara's Textiles")
-  );
+function isLegacyPlaceholder(session: Pick<SessionPreview, "email">): boolean {
+  return session.email === LEGACY_PLACEHOLDER_EMAIL;
 }
 
 export function loadSessionPreview(): SessionPreview {
@@ -71,8 +53,7 @@ export function loadSessionPreview(): SessionPreview {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<SessionPreview>;
       const merged = { ...emptySession(), ...parsed } as SessionPreview;
-      // Strip legacy Amara defaults that were persisted before the fix.
-      if (isDemoSession(merged)) {
+      if (isLegacyPlaceholder(merged)) {
         clearSessionPreview();
         return emptySession();
       }
@@ -100,7 +81,7 @@ export function saveSessionPreview(
     initials: initialsFromName(data.owner),
   };
   if (typeof window !== "undefined") {
-    if (isDemoSession(session)) {
+    if (isLegacyPlaceholder(session)) {
       clearSessionPreview();
       return emptySession();
     }

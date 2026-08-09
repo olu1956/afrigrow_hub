@@ -19,7 +19,6 @@ import { createClient } from "@/lib/supabase/client";
 import {
   clearSessionPreview,
   emptySession,
-  isDemoSession,
   loadSessionPreview,
   saveSessionPreview,
   type SessionPreview,
@@ -55,10 +54,6 @@ async function buildSessionFromAuthUser(user: User): Promise<SessionPreview> {
   }
 }
 
-function sanitizeSession(next: SessionPreview): SessionPreview {
-  return isDemoSession(next) ? emptySession() : next;
-}
-
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const authEnabled = isSupabaseAuthEnabled();
   const [session, setSessionState] = useState<SessionPreview>(emptySession);
@@ -83,7 +78,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const data = await getSessionDataAction();
       if (!active || !data) return false;
 
-      setSessionState(sanitizeSession(data.session));
+      setSessionState(data.session);
       setIsPlatformAdmin((prev) => data.isPlatformAdmin || prev);
       setAuthEmail(data.authEmail);
       saveSessionPreview(data.session);
@@ -96,7 +91,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!active) return;
 
       if (data) {
-        setSessionState(sanitizeSession(data.session));
+        setSessionState(data.session);
         setIsPlatformAdmin((prev) => data.isPlatformAdmin || prev);
         setAuthEmail(data.authEmail);
         saveSessionPreview(data.session);
@@ -105,7 +100,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       const next = await buildSessionFromAuthUser(user);
       if (!active) return;
-      setSessionState(sanitizeSession(next));
+      setSessionState(next);
       setAuthEmail(user.email ?? "");
       saveSessionPreview(next);
     }
@@ -212,7 +207,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const data = await getSessionDataAction();
     if (data) {
-      setSessionState(sanitizeSession(data.session));
+      setSessionState(data.session);
       setIsPlatformAdmin((prev) => data.isPlatformAdmin || prev);
       setAuthEmail(data.authEmail);
       saveSessionPreview(data.session);
@@ -227,7 +222,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       const next = await buildSessionFromAuthUser(user);
-      setSessionState(sanitizeSession(next));
+      setSessionState(next);
       setAuthEmail(user.email ?? "");
       saveSessionPreview(next);
     } else {
