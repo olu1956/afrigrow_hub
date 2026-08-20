@@ -22,6 +22,7 @@ export type TrainingCourseView = {
   title: string;
   summary: string;
   description: string;
+  flyerImageUrl: string;
   status: TrainingCourseStatus;
   providerName: string;
   sessions: TrainingSessionView[];
@@ -80,6 +81,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
     summary: "Prepare your business for grants, loans, and investor conversations.",
     description:
       "A practical 90-minute session covering financial records, pitch decks, and eligibility checklists for African markets.",
+    flyerImageUrl: "",
     status: "published",
     providerName: "AfriGrow Academy",
     sessions: [
@@ -105,6 +107,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
     summary: "Turn broadcasts and status posts into paying customers.",
     description:
       "Learn message templates, follow-up cadences, and compliance-friendly outreach for African SMEs.",
+    flyerImageUrl: "",
     status: "published",
     providerName: "Growth Collective",
     sessions: [

@@ -24,6 +24,8 @@ import {
   registerAsProviderAction,
   updateCourseAction,
 } from "@/lib/auth/training-actions";
+import { uploadTrainingFlyerToStorage } from "@/lib/training/flyer-upload";
+import { createClient } from "@/lib/supabase/client";
 import {
   demoMyEnrollments,
   demoTrainingCourses,
@@ -293,6 +295,14 @@ function CourseCatalogCard({
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      {course.flyerImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={course.flyerImageUrl}
+          alt={`${course.title} flyer`}
+          className="h-44 w-full object-cover"
+        />
+      ) : null}
       <div className="border-b border-border bg-primary-dark px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
           {course.providerName}
@@ -352,6 +362,7 @@ export function TrainingPortal() {
   const [loading, setLoading] = useState(authEnabled);
   const [saving, setSaving] = useState(false);
   const [enrollingSessionId, setEnrollingSessionId] = useState<string | null>(null);
+  const [uploadingFlyerCourseId, setUploadingFlyerCourseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupWarning, setSetupWarning] = useState<string | null>(null);
   const [usingDemo, setUsingDemo] = useState(false);
@@ -635,6 +646,46 @@ export function TrainingPortal() {
     }
 
     setSuccessMessage("Course restored as a draft. Publish again when you are ready.");
+    await loadData();
+  }
+
+  async function handleFlyerUpload(courseId: string, file: File | null) {
+    if (!file) return;
+
+    setError(null);
+    setSuccessMessage(null);
+    setUploadingFlyerCourseId(courseId);
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("You must be signed in to upload a flyer.");
+      setUploadingFlyerCourseId(null);
+      return;
+    }
+
+    const upload = await uploadTrainingFlyerToStorage(file, user.id, courseId);
+    if (!upload.ok) {
+      setError(upload.error);
+      setUploadingFlyerCourseId(null);
+      return;
+    }
+
+    const result = await updateCourseAction({
+      courseId,
+      flyerImageUrl: upload.publicUrl,
+    });
+    setUploadingFlyerCourseId(null);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not save flyer.");
+      return;
+    }
+
+    setSuccessMessage("Course flyer saved. Learners will see it on Browse & enroll.");
     await loadData();
   }
 
@@ -1089,7 +1140,7 @@ export function TrainingPortal() {
                   activeProviderCourses.map((course) => (
                     <div key={course.id} className="rounded-2xl border border-border bg-card p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <h3 className="font-bold text-foreground">{course.title}</h3>
                           <p className="mt-1 text-sm text-muted">{course.summary}</p>
                           <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-primary">
@@ -1117,6 +1168,46 @@ export function TrainingPortal() {
                           </button>
                         </div>
                       </div>
+
+                      <div className="mt-4 rounded-xl border border-border bg-background p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                          Course flyer
+                        </p>
+                        {course.flyerImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={course.flyerImageUrl}
+                            alt={`${course.title} flyer`}
+                            className="mt-2 h-40 w-full rounded-lg object-cover"
+                          />
+                        ) : (
+                          <p className="mt-2 text-sm text-muted">
+                            No flyer yet. Upload a JPEG or PNG (max 5 MB).
+                          </p>
+                        )}
+                        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-bold uppercase tracking-wide text-foreground hover:bg-card">
+                          {uploadingFlyerCourseId === course.id ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Uploading…
+                            </>
+                          ) : (
+                            <>{course.flyerImageUrl ? "Replace flyer" : "Upload flyer"}</>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="hidden"
+                            disabled={uploadingFlyerCourseId === course.id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              e.target.value = "";
+                              void handleFlyerUpload(course.id, file);
+                            }}
+                          />
+                        </label>
+                      </div>
+
                       {course.sessions.length > 0 ? (
                         <div className="mt-4 space-y-2">
                           {course.sessions.map((session) => (

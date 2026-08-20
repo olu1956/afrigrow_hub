@@ -61,6 +61,10 @@ function formatTrainingDbError(message: string): string {
     return "Run migration 20260708160000_training_enrollment_contact_details.sql in Supabase SQL Editor, then refresh this page.";
   }
 
+  if (message.includes("flyer_image_url") || /training-flyers/i.test(message)) {
+    return "Run migration 20260820120000_training_course_flyer.sql in Supabase SQL Editor, then refresh this page.";
+  }
+
   return message;
 }
 
@@ -137,6 +141,7 @@ function buildCourseView(
     title: course.title,
     summary: course.summary,
     description: course.description,
+    flyerImageUrl: course.flyer_image_url ?? "",
     status: course.status,
     providerName,
     sessions,
@@ -612,6 +617,7 @@ export async function updateCourseAction(input: {
   title?: string;
   summary?: string;
   description?: string;
+  flyerImageUrl?: string;
   status?: TrainingCourse["status"];
 }): Promise<TrainingActionResult> {
   if (!isSupabaseAuthEnabled()) {
@@ -631,6 +637,7 @@ export async function updateCourseAction(input: {
   if (input.title !== undefined) updates.title = input.title.trim();
   if (input.summary !== undefined) updates.summary = input.summary.trim();
   if (input.description !== undefined) updates.description = input.description.trim();
+  if (input.flyerImageUrl !== undefined) updates.flyer_image_url = input.flyerImageUrl.trim();
   if (input.status !== undefined) updates.status = input.status;
 
   const { error } = await supabase
