@@ -406,8 +406,16 @@ export function TrainingPortal() {
     setIsProvider(result.isProvider ?? false);
     setProviderName(result.provider?.displayName ?? "");
     setUsingDemo(false);
-    if (!selectedCourseId && (result.providerCourses?.length ?? 0) > 0) {
-      setSelectedCourseId(result.providerCourses![0]!.id);
+    const activeCourses = (result.providerCourses ?? []).filter((c) => c.status !== "archived");
+    if (!selectedCourseId && activeCourses.length > 0) {
+      setSelectedCourseId(activeCourses[0]!.id);
+    } else if (
+      selectedCourseId &&
+      !(result.providerCourses ?? []).some(
+        (c) => c.id === selectedCourseId && c.status !== "archived",
+      )
+    ) {
+      setSelectedCourseId(activeCourses[0]?.id ?? "");
     }
     setLoading(false);
   }, [authEnabled, selectedCourseId]);
@@ -581,6 +589,7 @@ export function TrainingPortal() {
   async function handlePublish(courseId: string) {
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     const result = await updateCourseAction({ courseId, status: "published" });
     setSaving(false);
 
@@ -589,6 +598,43 @@ export function TrainingPortal() {
       return;
     }
 
+    setSuccessMessage("Course published to the catalog.");
+    await loadData();
+  }
+
+  async function handleArchive(courseId: string) {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+    const result = await updateCourseAction({ courseId, status: "archived" });
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not archive course.");
+      return;
+    }
+
+    if (selectedCourseId === courseId) {
+      setSelectedCourseId("");
+    }
+    setSuccessMessage("Course archived. You can restore it later from Archived courses.");
+    await loadData();
+  }
+
+  async function handleRestore(courseId: string) {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+    // Restore to draft so you can edit/add sessions before publishing again
+    const result = await updateCourseAction({ courseId, status: "draft" });
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not restore course.");
+      return;
+    }
+
+    setSuccessMessage("Course restored as a draft. Publish again when you are ready.");
     await loadData();
   }
 
@@ -642,6 +688,8 @@ export function TrainingPortal() {
   const upcomingCount = myEnrollments.filter(
     (e) => e.status === "enrolled" && isSessionUpcoming(e.startsAt),
   ).length;
+  const activeProviderCourses = providerCourses.filter((c) => c.status !== "archived");
+  const archivedProviderCourses = providerCourses.filter((c) => c.status === "archived");
 
   return (
     <DashboardPageLayout
@@ -662,7 +710,7 @@ export function TrainingPortal() {
             },
             {
               label: "Provider courses",
-              value: String(providerCourses.length),
+              value: String(activeProviderCourses.length),
               icon: GraduationCap,
             },
           ]}
@@ -965,7 +1013,7 @@ export function TrainingPortal() {
                       className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
                     >
                       <option value="">Select a course</option>
-                      {providerCourses.map((course) => (
+                      {activeProviderCourses.map((course) => (
                         <option key={course.id} value={course.id}>
                           {course.title} ({course.status})
                         </option>
@@ -1035,10 +1083,10 @@ export function TrainingPortal() {
 
               <div className="space-y-4">
                 <h2 className="text-lg font-bold text-foreground">Your courses</h2>
-                {providerCourses.length === 0 ? (
-                  <p className="text-sm text-muted">No courses yet. Create your first course above.</p>
+                {activeProviderCourses.length === 0 ? (
+                  <p className="text-sm text-muted">No active courses yet. Create your first course above.</p>
                 ) : (
-                  providerCourses.map((course) => (
+                  activeProviderCourses.map((course) => (
                     <div key={course.id} className="rounded-2xl border border-border bg-card p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -1048,16 +1096,26 @@ export function TrainingPortal() {
                             Status: {course.status}
                           </p>
                         </div>
-                        {course.status === "draft" ? (
+                        <div className="flex flex-wrap gap-2">
+                          {course.status === "draft" ? (
+                            <button
+                              type="button"
+                              disabled={saving || course.sessions.length === 0}
+                              onClick={() => handlePublish(course.id)}
+                              className="rounded-md bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                            >
+                              Publish to catalog
+                            </button>
+                          ) : null}
                           <button
                             type="button"
-                            disabled={saving || course.sessions.length === 0}
-                            onClick={() => handlePublish(course.id)}
-                            className="rounded-md bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                            disabled={saving}
+                            onClick={() => handleArchive(course.id)}
+                            className="rounded-md border border-border px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted hover:bg-background disabled:opacity-50"
                           >
-                            Publish to catalog
+                            Archive
                           </button>
-                        ) : null}
+                        </div>
                       </div>
                       {course.sessions.length > 0 ? (
                         <div className="mt-4 space-y-2">
@@ -1083,6 +1141,55 @@ export function TrainingPortal() {
                   ))
                 )}
               </div>
+
+              {archivedProviderCourses.length > 0 ? (
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-foreground">Archived courses</h2>
+                    <p className="mt-1 text-sm text-muted">
+                      Hidden from the learner catalog. Restore a course to draft when you want to
+                      reuse it, then publish again.
+                    </p>
+                  </div>
+                  {archivedProviderCourses.map((course) => (
+                    <div
+                      key={course.id}
+                      className="rounded-2xl border border-dashed border-border bg-card/70 p-5 opacity-90"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-bold text-foreground">{course.title}</h3>
+                          <p className="mt-1 text-sm text-muted">{course.summary}</p>
+                          <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                            Status: archived
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => handleRestore(course.id)}
+                          className="rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                        >
+                          Restore to draft
+                        </button>
+                      </div>
+                      {course.sessions.length > 0 ? (
+                        <div className="mt-4 space-y-2">
+                          {course.sessions.map((session) => (
+                            <div
+                              key={session.id}
+                              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted"
+                            >
+                              <span className="font-medium text-foreground">{session.title}</span>
+                              <span> · {formatTrainingDate(session.startsAt)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
               <div className="space-y-4">
                 <h2 className="text-lg font-bold text-foreground">Enrolled trainees</h2>
