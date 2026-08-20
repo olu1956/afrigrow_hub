@@ -98,8 +98,22 @@ export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 border-t border-border px-3 py-4">
+        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
+          Account
+        </p>
+        <div className="space-y-1">
+          {bottomNav.map((item) => (
+            <NavLink
+              key={item.href}
+              {...item}
+              active={isActive(item.href)}
+              onNavigate={onClose}
+            />
+          ))}
+        </div>
+
         {showAdmin ? (
-          <>
+          <div className="mt-4 space-y-1 border-t border-border pt-4">
             <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
               Admin
             </p>
@@ -111,16 +125,8 @@ export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
                 onNavigate={onClose}
               />
             ))}
-          </>
+          </div>
         ) : null}
-        {bottomNav.map((item) => (
-          <NavLink
-            key={item.href}
-            {...item}
-            active={isActive(item.href)}
-            onNavigate={onClose}
-          />
-        ))}
 
         <div className="mt-4 flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
