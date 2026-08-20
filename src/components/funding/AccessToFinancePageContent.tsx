@@ -108,7 +108,7 @@ export function AccessToFinancePageContent() {
           </div>
 
           <div className="mt-14 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-dark to-primary p-8 text-center text-white sm:p-10">
-            <h2 className="text-2xl font-bold">Ready to explore funding tools?</h2>
+            <h2 className="text-2xl font-bold">Ready to explore Access to Finance?</h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/80">
               Join AfriGrow Hub free and open the Finance Agent in your dashboard.{" "}
               {EARLY_ACCESS_FOOTER}

@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/initiatives/funding-tools",
+        destination: "/initiatives/access-to-finance",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
