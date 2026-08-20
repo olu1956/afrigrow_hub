@@ -296,12 +296,14 @@ function CourseCatalogCard({
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       {course.flyerImageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={course.flyerImageUrl}
-          alt={`${course.title} flyer`}
-          className="h-44 w-full object-cover"
-        />
+        <div className="bg-background px-4 pt-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={course.flyerImageUrl}
+            alt={`${course.title} flyer`}
+            className="mx-auto h-auto max-h-[32rem] w-full rounded-lg object-contain"
+          />
+        </div>
       ) : null}
       <div className="border-b border-border bg-primary-dark px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
@@ -1178,7 +1180,7 @@ export function TrainingPortal() {
                           <img
                             src={course.flyerImageUrl}
                             alt={`${course.title} flyer`}
-                            className="mt-2 h-40 w-full rounded-lg object-cover"
+                            className="mt-2 mx-auto h-auto max-h-[28rem] w-full rounded-lg object-contain"
                           />
                         ) : (
                           <p className="mt-2 text-sm text-muted">
