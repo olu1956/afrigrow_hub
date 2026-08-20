@@ -149,6 +149,12 @@ export const adminNav: NavItem[] = [
     icon: BookOpen,
     description: "Publish academy guides",
   },
+  {
+    label: "Funding catalogue",
+    href: "/dashboard/admin/funding",
+    icon: Wallet,
+    description: "Upload programmes by country",
+  },
 ];
 
 export const bottomNav: NavItem[] = [

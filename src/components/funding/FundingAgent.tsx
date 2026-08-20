@@ -14,6 +14,7 @@ import {
   getFundingProfileAction,
   saveFundingProfileAction,
 } from "@/lib/auth/funding-actions";
+import { getPublishedFundingCatalogueAction } from "@/lib/auth/funding-catalogue-actions";
 import type { BusinessStage } from "@/lib/database/funding-profiles";
 import {
   defaultFundingPotentialLabel,
@@ -25,8 +26,9 @@ import {
   calculateReadiness,
   defaultCompletedItems,
   FUNDING_DISCLAIMER,
-  fundingOpportunities,
+  fundingOpportunities as seedFundingOpportunities,
   fundingTypeFilters,
+  type FundingOpportunityDefinition,
   type FundingType,
   type MatchedGrantOpportunity,
 } from "@/lib/funding-data";
@@ -41,6 +43,9 @@ export function FundingAgent() {
     [businessCountry],
   );
   const initialized = useRef(false);
+  const [catalogue, setCatalogue] = useState<FundingOpportunityDefinition[]>(
+    seedFundingOpportunities,
+  );
   const [typeFilter, setTypeFilter] = useState<FundingType | "all">("all");
   const [search, setSearch] = useState("");
   const [businessStage, setBusinessStage] = useState<BusinessStage>("early");
@@ -54,6 +59,7 @@ export function FundingAgent() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupWarning, setSetupWarning] = useState<string | null>(null);
+  const [catalogueNotice, setCatalogueNotice] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
 
   const readiness = useMemo(() => calculateReadiness(completed), [completed]);
@@ -113,14 +119,25 @@ export function FundingAgent() {
     if (!hydrated || initialized.current) return;
 
     async function init() {
+      setLoadingProfile(true);
+      setError(null);
+
+      const catalogueResult = await getPublishedFundingCatalogueAction();
+      if (catalogueResult.opportunities?.length) {
+        setCatalogue(catalogueResult.opportunities);
+      }
+      if (catalogueResult.warning) {
+        setCatalogueNotice(catalogueResult.warning);
+      }
+      if (catalogueResult.error) {
+        setCatalogueNotice(catalogueResult.error);
+      }
+
       if (!authEnabled) {
         setLoadingProfile(false);
         initialized.current = true;
         return;
       }
-
-      setLoadingProfile(true);
-      setError(null);
 
       const result = await getFundingProfileAction();
       if (result.warning) {
@@ -157,7 +174,7 @@ export function FundingAgent() {
   const matchedOpportunities = useMemo(() => {
     const fundingAmount = Number.parseFloat(fundingNeeded) || 0;
 
-    return matchFundingOpportunities(fundingOpportunities, {
+    return matchFundingOpportunities(catalogue, {
       country: businessCountry,
       businessStage,
       fundingNeeded: fundingAmount,
@@ -168,6 +185,7 @@ export function FundingAgent() {
     business.businessType,
     businessCountry,
     businessStage,
+    catalogue,
     fundingNeeded,
     readiness,
   ]);
@@ -224,7 +242,7 @@ export function FundingAgent() {
       title="Finance & Funding Agent"
       description="Discover grants and loans matched to your country and profile — then prepare your checklist before applying on the provider's site."
       heroExtra={
-        loadingProfile || error || setupWarning || savedNotice ? (
+        loadingProfile || error || setupWarning || catalogueNotice || savedNotice ? (
           <>
             {loadingProfile ? (
               <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted">
@@ -234,6 +252,11 @@ export function FundingAgent() {
             {setupWarning ? (
               <div className="rounded-xl border border-accent/30 bg-accent-light/40 px-4 py-3 text-sm text-foreground">
                 <strong className="font-semibold">Database setup needed.</strong> {setupWarning}
+              </div>
+            ) : null}
+            {catalogueNotice ? (
+              <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted">
+                {catalogueNotice}
               </div>
             ) : null}
             {error ? (
