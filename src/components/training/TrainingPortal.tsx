@@ -371,6 +371,9 @@ export function TrainingPortal() {
 
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseSummary, setNewCourseSummary] = useState("");
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editCourseTitle, setEditCourseTitle] = useState("");
+  const [editCourseSummary, setEditCourseSummary] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [sessionTitle, setSessionTitle] = useState("");
   const [sessionDate, setSessionDate] = useState("");
@@ -612,6 +615,53 @@ export function TrainingPortal() {
     }
 
     setSuccessMessage("Course published to the catalog.");
+    await loadData();
+  }
+
+  function startEditCourse(course: TrainingCourseView) {
+    setEditingCourseId(course.id);
+    setEditCourseTitle(course.title);
+    setEditCourseSummary(course.summary);
+    setError(null);
+    setSuccessMessage(null);
+  }
+
+  function cancelEditCourse() {
+    setEditingCourseId(null);
+    setEditCourseTitle("");
+    setEditCourseSummary("");
+  }
+
+  async function handleSaveCourseEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editingCourseId) return;
+
+    const title = editCourseTitle.trim();
+    const summary = editCourseSummary.trim();
+    if (!title || !summary) {
+      setError("Title and summary are required.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const result = await updateCourseAction({
+      courseId: editingCourseId,
+      title,
+      summary,
+    });
+
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not update course.");
+      return;
+    }
+
+    cancelEditCourse();
+    setSuccessMessage("Course details updated. Learners will see the change on Browse & enroll.");
     await loadData();
   }
 
@@ -1163,6 +1213,18 @@ export function TrainingPortal() {
                           <button
                             type="button"
                             disabled={saving}
+                            onClick={() =>
+                              editingCourseId === course.id
+                                ? cancelEditCourse()
+                                : startEditCourse(course)
+                            }
+                            className="rounded-md border border-border px-4 py-2 text-xs font-bold uppercase tracking-wide text-foreground hover:bg-background disabled:opacity-50"
+                          >
+                            {editingCourseId === course.id ? "Cancel edit" : "Edit details"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saving}
                             onClick={() => handleArchive(course.id)}
                             className="rounded-md border border-border px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted hover:bg-background disabled:opacity-50"
                           >
@@ -1170,6 +1232,45 @@ export function TrainingPortal() {
                           </button>
                         </div>
                       </div>
+
+                      {editingCourseId === course.id ? (
+                        <form
+                          onSubmit={handleSaveCourseEdit}
+                          className="mt-4 grid gap-3 rounded-xl border border-primary/20 bg-primary-light/30 p-4"
+                        >
+                          <p className="text-sm font-semibold text-foreground">
+                            Edit course details (stays {course.status})
+                          </p>
+                          <label className="block text-sm">
+                            <span className="font-medium text-foreground">Title</span>
+                            <input
+                              required
+                              type="text"
+                              value={editCourseTitle}
+                              onChange={(e) => setEditCourseTitle(e.target.value)}
+                              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <label className="block text-sm">
+                            <span className="font-medium text-foreground">Summary</span>
+                            <textarea
+                              required
+                              rows={4}
+                              value={editCourseSummary}
+                              onChange={(e) => setEditCourseSummary(e.target.value)}
+                              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={saving}
+                            className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                          >
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                            Save changes
+                          </button>
+                        </form>
+                      ) : null}
 
                       <div className="mt-4 rounded-xl border border-border bg-background p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
