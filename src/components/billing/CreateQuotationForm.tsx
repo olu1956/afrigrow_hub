@@ -62,25 +62,31 @@ export function CreateQuotationForm({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const parsedItems = useMemo(() => {
-    return lineItems
-      .map((item) => {
-        const quantity = Number.parseFloat(item.quantity);
-        const unitPrice = Number.parseFloat(item.unitPrice);
-        const safeQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
-        const safeUnitPrice = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0;
+  const draftItems = useMemo(() => {
+    return lineItems.map((item) => {
+      const quantity = Number.parseFloat(item.quantity);
+      const unitPrice = Number.parseFloat(item.unitPrice);
+      const safeQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
+      const safeUnitPrice = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0;
 
-        return {
-          description: item.description.trim(),
-          quantity: safeQuantity,
-          unit_price: safeUnitPrice,
-          amount: Math.round(safeQuantity * safeUnitPrice * 100) / 100,
-        };
-      })
-      .filter((item) => item.description && item.quantity > 0);
+      return {
+        description: item.description.trim(),
+        quantity: safeQuantity,
+        unit_price: safeUnitPrice,
+        amount: Math.round(safeQuantity * safeUnitPrice * 100) / 100,
+      };
+    });
   }, [lineItems]);
 
-  const total = useMemo(() => calculateQuotationTotal(parsedItems), [parsedItems]);
+  const parsedItems = useMemo(
+    () => draftItems.filter((item) => item.description && item.quantity > 0),
+    [draftItems],
+  );
+
+  const total = useMemo(
+    () => calculateQuotationTotal(draftItems.filter((item) => item.quantity > 0)),
+    [draftItems],
+  );
 
   function updateLineItem(id: string, patch: Partial<LineItemDraft>) {
     setLineItems((current) =>
