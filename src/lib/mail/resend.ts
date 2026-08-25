@@ -13,8 +13,7 @@ export type SendEmailResult =
 
 const RESEND_API = "https://api.resend.com/emails";
 
-/** Resend allows this from-address without a verified domain (deliver to the Resend account email only). */
-const TEST_FROM = "AfriGrow Hub <onboarding@resend.dev>";
+const VERIFIED_FROM = "AfriGrow Hub <billing@send.afrigrow.app>";
 
 const BARE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAMED_EMAIL = /^.+\s<[^<>\s]+@[^<>\s]+\.[^<>\s]+>$/;
@@ -66,13 +65,15 @@ export function isBillingMailConfigured(): boolean {
 
 export function billingMailFromAddress(): string {
   const coerced = coerceFromAddress(process.env["BILLING_FROM_EMAIL"] ?? "");
-  if (!coerced || !isValidFromAddress(coerced)) {
-    return TEST_FROM;
-  }
+  const host = coerced && isValidFromAddress(coerced) ? fromHost(coerced) : null;
 
-  const host = fromHost(coerced);
-  if (!host || CONSUMER_INBOX_HOSTS.has(host) || host === "afrigrow.app") {
-    return TEST_FROM;
+  if (
+    !host ||
+    CONSUMER_INBOX_HOSTS.has(host) ||
+    host === "afrigrow.app" ||
+    host === "resend.dev"
+  ) {
+    return VERIFIED_FROM;
   }
 
   return coerced;
@@ -82,15 +83,15 @@ function explainResendError(message: string): string {
   const lower = message.toLowerCase();
 
   if (lower.includes("invalid `from`") || lower.includes("invalid from")) {
-    return "The sender address in Vercel is invalid. Leave BILLING_FROM_EMAIL empty, or set it to: AfriGrow Hub <onboarding@resend.dev>";
+    return "The sender address is invalid. Set BILLING_FROM_EMAIL in Vercel to: AfriGrow Hub <billing@send.afrigrow.app>";
   }
 
   if (lower.includes("not verified") || lower.includes("domain")) {
-    return "Resend will not send from afrigrow.app until that domain is verified. Test mail now uses onboarding@resend.dev and can only reach the email you used to sign up for Resend.";
+    return "Resend could not send from this domain. Confirm send.afrigrow.app is still verified at resend.com/domains.";
   }
 
   if (lower.includes("only send testing emails") || lower.includes("you can only send")) {
-    return "Until send.afrigrow.app is verified in Resend, mail can only be delivered to the email you used to create your Resend account. Check that inbox and Spam.";
+    return "Resend is still in test mode for this send. Confirm send.afrigrow.app is verified, then redeploy.";
   }
 
   return message;
