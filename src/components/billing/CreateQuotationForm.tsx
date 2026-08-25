@@ -7,6 +7,7 @@ import {
   marketingFieldBorderClass,
 } from "@/components/dashboard/DashboardPageCanvas";
 import { saveQuotationAction } from "@/lib/auth/quotation-actions";
+import { validateEmail } from "@/lib/auth-validation";
 import { formatInvoiceMoney } from "@/lib/billing/invoice-mapper";
 import { calculateQuotationTotal } from "@/lib/billing/quotation-mapper";
 import type { QuotationStatus } from "@/lib/database/quotations";
@@ -56,6 +57,7 @@ export function CreateQuotationForm({
   onError,
 }: CreateQuotationFormProps) {
   const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([createEmptyLineItem()]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export function CreateQuotationForm({
 
   function resetForm() {
     setClientName("");
+    setClientEmail("");
     setLineItems([createEmptyLineItem()]);
     setFormError(null);
   }
@@ -115,10 +118,19 @@ export function CreateQuotationForm({
       return;
     }
 
+    if (status === "sent") {
+      const emailError = validateEmail(clientEmail);
+      if (emailError) {
+        setFormError("Enter a valid client email so AfriGrow can send this quotation.");
+        return;
+      }
+    }
+
     setSaving(true);
 
     const result = await saveQuotationAction({
       clientName: clientName.trim(),
+      clientEmail: clientEmail.trim(),
       items: parsedItems,
       status,
     });
@@ -132,9 +144,12 @@ export function CreateQuotationForm({
       return;
     }
 
-    const label =
-      status === "sent"
-        ? "Quotation saved and marked as sent."
+    const label = result.warning
+      ? result.warning
+      : status === "sent"
+        ? result.emailed
+          ? `Quotation emailed to ${clientEmail.trim()}.`
+          : "Quotation saved and marked as sent."
         : "Quotation saved as draft.";
 
     resetForm();
@@ -151,22 +166,36 @@ export function CreateQuotationForm({
       <div className="mb-5">
         <h2 className="font-semibold text-foreground">Create quotation</h2>
         <p className="mt-1 text-sm text-muted">
-          Send a price quote to a client before invoicing.
+          Send a price quote to a client before invoicing. Save &amp; mark sent
+          emails the client from AfriGrow (you get a copy).
         </p>
       </div>
 
       <form onSubmit={onFormSubmit} className="space-y-6">
-        <Field label="Client name">
-          <input
-            type="text"
-            required
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-            placeholder="Client or company name"
-            className={inputClass}
-            disabled={disabled || saving}
-          />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Client name">
+            <input
+              type="text"
+              required
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="Client or company name"
+              className={inputClass}
+              disabled={disabled || saving}
+            />
+          </Field>
+          <Field label="Client email">
+            <input
+              type="email"
+              required
+              value={clientEmail}
+              onChange={(e) => setClientEmail(e.target.value)}
+              placeholder="client@example.com"
+              className={inputClass}
+              disabled={disabled || saving}
+            />
+          </Field>
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">

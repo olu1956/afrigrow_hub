@@ -26,6 +26,7 @@ export type Quotation = {
   id: string;
   date: string;
   clientName: string;
+  clientEmail?: string;
   description: string;
   amount: string;
   status: QuotationStatus;

@@ -7,6 +7,7 @@ export type QuotationRecord = {
   user_id: string;
   business_id: string;
   client_name: string;
+  client_email: string;
   items: InvoiceLineItem[];
   total: number;
   status: QuotationStatus;
@@ -15,12 +16,12 @@ export type QuotationRecord = {
 
 export type QuotationInsert = Pick<
   QuotationRecord,
-  "user_id" | "business_id" | "client_name"
+  "user_id" | "business_id" | "client_name" | "client_email"
 > &
   Partial<Pick<QuotationRecord, "items" | "total" | "status">>;
 
 export type QuotationUpdate = Partial<
-  Pick<QuotationRecord, "client_name" | "items" | "total" | "status">
+  Pick<QuotationRecord, "client_name" | "client_email" | "items" | "total" | "status">
 >;
 
 export const QUOTATIONS_TABLE = "quotations" as const;

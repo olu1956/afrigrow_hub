@@ -117,6 +117,12 @@ export const workspaceModules: NavItem[] = [
     icon: BarChart3,
     description: "Insights & reports",
   },
+  {
+    label: "Billing",
+    href: "/dashboard/billing",
+    icon: CreditCard,
+    description: "Plan & payments",
+  },
 ];
 
 export const mainNav: NavItem[] = [
@@ -158,12 +164,6 @@ export const adminNav: NavItem[] = [
 ];
 
 export const bottomNav: NavItem[] = [
-  {
-    label: "Billing",
-    href: "/dashboard/billing",
-    icon: CreditCard,
-    description: "Plan & payments",
-  },
   {
     label: "Settings",
     href: "/dashboard/settings",

@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, CreditCard, Download, Loader2, Sparkles } from "lucide-react";
+import { Check, CreditCard, Download, Loader2, Mail, Sparkles } from "lucide-react";
 import { CreateInvoiceForm } from "@/components/billing/CreateInvoiceForm";
 import { CreateQuotationForm } from "@/components/billing/CreateQuotationForm";
 import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
 import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
-import { getInvoicesAction } from "@/lib/auth/billing-actions";
-import { getQuotationsAction } from "@/lib/auth/quotation-actions";
+import { getInvoicesAction, sendInvoiceEmailAction } from "@/lib/auth/billing-actions";
+import {
+  getQuotationsAction,
+  sendQuotationEmailAction,
+} from "@/lib/auth/quotation-actions";
 import {
   getSubscriptionAction,
   updateSubscriptionPlanAction,
@@ -36,11 +39,13 @@ import {
 
 type DisplayInvoice = Invoice & {
   recordId?: string;
+  clientEmail?: string;
   source?: "live" | "demo";
 };
 
 type DisplayQuotation = Quotation & {
   recordId?: string;
+  clientEmail?: string;
   source?: "live" | "demo";
 };
 
@@ -81,6 +86,7 @@ export function BillingDashboard() {
   const [invoices, setInvoices] = useState<DisplayInvoice[]>([]);
   const [quotations, setQuotations] = useState<DisplayQuotation[]>([]);
   const [usageStats, setUsageStats] = useState<DashboardStats | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const currentPlanId = subscriptionPlanId ?? planIdFromName(business.plan);
   const currentPlan = getPlanById(currentPlanId);
@@ -246,6 +252,34 @@ export function BillingDashboard() {
       businessType: business.businessType,
     });
     setNotice(`Plan updated to ${plan.name}. ${BILLING_PAGE_NOTE}`);
+  }
+
+  async function handleSendInvoice(invoice: DisplayInvoice) {
+    if (!invoice.recordId || sendingId) return;
+    setSendingId(invoice.recordId);
+    setError(null);
+    const result = await sendInvoiceEmailAction({ invoiceId: invoice.recordId });
+    setSendingId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not email this invoice.");
+      return;
+    }
+    setNotice(`Invoice emailed to ${invoice.clientEmail || "the client"}.`);
+    void loadInvoices();
+  }
+
+  async function handleSendQuotation(quotation: DisplayQuotation) {
+    if (!quotation.recordId || sendingId) return;
+    setSendingId(quotation.recordId);
+    setError(null);
+    const result = await sendQuotationEmailAction({ quotationId: quotation.recordId });
+    setSendingId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not email this quotation.");
+      return;
+    }
+    setNotice(`Quotation emailed to ${quotation.clientEmail || "the client"}.`);
+    void loadQuotations();
   }
 
   return (
@@ -505,7 +539,8 @@ export function BillingDashboard() {
                     <th className="pb-3 pr-4 font-medium">Date</th>
                     <th className="pb-3 pr-4 font-medium">Description</th>
                     <th className="pb-3 pr-4 font-medium">Amount</th>
-                    <th className="pb-3 font-medium">Status</th>
+                    <th className="pb-3 pr-4 font-medium">Status</th>
+                    <th className="pb-3 font-medium">Email</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -515,12 +550,29 @@ export function BillingDashboard() {
                       <td className="py-3 pr-4 text-muted">{invoice.date}</td>
                       <td className="py-3 pr-4 text-foreground">{invoice.description}</td>
                       <td className="py-3 pr-4 font-medium text-foreground">{invoice.amount}</td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${invoiceStatusStyles[invoice.status]}`}
                         >
                           {invoice.status}
                         </span>
+                      </td>
+                      <td className="py-3">
+                        {invoice.recordId && invoice.source === "live" ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleSendInvoice(invoice)}
+                            disabled={sendingId === invoice.recordId}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:opacity-60"
+                          >
+                            {sendingId === invoice.recordId ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Mail className="h-3.5 w-3.5" />
+                            )}
+                            Email client
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -571,7 +623,8 @@ export function BillingDashboard() {
                   <th className="pb-3 pr-4 font-medium">Client</th>
                   <th className="pb-3 pr-4 font-medium">Description</th>
                   <th className="pb-3 pr-4 font-medium">Amount</th>
-                  <th className="pb-3 font-medium">Status</th>
+                  <th className="pb-3 pr-4 font-medium">Status</th>
+                  <th className="pb-3 font-medium">Email</th>
                 </tr>
               </thead>
               <tbody>
@@ -585,12 +638,29 @@ export function BillingDashboard() {
                     <td className="py-3 pr-4 text-foreground">{quotation.clientName}</td>
                     <td className="py-3 pr-4 text-foreground">{quotation.description}</td>
                     <td className="py-3 pr-4 font-medium text-foreground">{quotation.amount}</td>
-                    <td className="py-3">
+                    <td className="py-3 pr-4">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${quotationStatusStyles[quotation.status]}`}
                       >
                         {quotation.status}
                       </span>
+                    </td>
+                    <td className="py-3">
+                      {quotation.recordId && quotation.source === "live" ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleSendQuotation(quotation)}
+                          disabled={sendingId === quotation.recordId}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:opacity-60"
+                        >
+                          {sendingId === quotation.recordId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Mail className="h-3.5 w-3.5" />
+                          )}
+                          Email client
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

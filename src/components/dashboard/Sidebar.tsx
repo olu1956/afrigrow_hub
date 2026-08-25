@@ -70,7 +70,7 @@ export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
   const content = (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex h-16 items-center justify-between border-b border-border px-4 md:px-5">
         <BrandLogo onClick={onClose} size="sm" />
         <button
@@ -146,7 +146,7 @@ export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
   return (
     <>
       {/* Fixed sidebar — stays put without sticky scroll chaining on the page. */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-border bg-card md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 min-h-0 flex-col overflow-hidden border-r border-border bg-card md:flex">
         {content}
       </aside>
 
@@ -158,7 +158,7 @@ export function Sidebar({ open, onClose, showAdmin = false }: SidebarProps) {
             onClick={onClose}
             aria-label="Close menu overlay"
           />
-          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col bg-card shadow-xl">
+          <aside className="relative flex h-full min-h-0 w-72 max-w-[85vw] flex-col overflow-hidden bg-card shadow-xl">
             {content}
           </aside>
         </div>

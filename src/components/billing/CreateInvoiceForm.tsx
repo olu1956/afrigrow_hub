@@ -7,6 +7,7 @@ import {
   marketingFieldBorderClass,
 } from "@/components/dashboard/DashboardPageCanvas";
 import { saveInvoiceAction } from "@/lib/auth/billing-actions";
+import { validateEmail } from "@/lib/auth-validation";
 import {
   calculateInvoiceTotals,
   formatInvoiceMoney,
@@ -127,6 +128,14 @@ export function CreateInvoiceForm({
       return;
     }
 
+    if (status === "sent") {
+      const emailError = validateEmail(clientEmail);
+      if (emailError) {
+        setFormError("Enter a valid client email so AfriGrow can send this invoice.");
+        return;
+      }
+    }
+
     setSaving(true);
 
     const rate = Number.parseFloat(taxRate);
@@ -148,9 +157,12 @@ export function CreateInvoiceForm({
       return;
     }
 
-    const label =
-      status === "sent"
-        ? "Invoice saved and marked as sent."
+    const label = result.warning
+      ? result.warning
+      : status === "sent"
+        ? result.emailed
+          ? `Invoice emailed to ${clientEmail.trim()}.`
+          : "Invoice saved and marked as sent."
         : "Invoice saved as draft.";
 
     resetForm();
@@ -167,7 +179,8 @@ export function CreateInvoiceForm({
       <div className="mb-5">
         <h2 className="font-semibold text-foreground">Create invoice</h2>
         <p className="mt-1 text-sm text-muted">
-          Bill a client and track it in your invoice history.
+          Bill a client and track it in your invoice history. Save &amp; mark sent
+          emails the client from AfriGrow (you get a copy).
         </p>
       </div>
 
@@ -187,6 +200,7 @@ export function CreateInvoiceForm({
           <Field label="Client email">
             <input
               type="email"
+              required
               value={clientEmail}
               onChange={(e) => setClientEmail(e.target.value)}
               placeholder="client@example.com"

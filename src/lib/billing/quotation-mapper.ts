@@ -30,6 +30,7 @@ export function calculateQuotationTotal(items: InvoiceLineItem[]): number {
 export function mapQuotationRecord(row: QuotationRecord): QuotationRecord {
   return {
     ...row,
+    client_email: row.client_email?.trim() ?? "",
     total: parseAmount(row.total),
     items: normalizeInvoiceItems(row.items),
   };
@@ -38,7 +39,7 @@ export function mapQuotationRecord(row: QuotationRecord): QuotationRecord {
 export function quotationRecordToDisplay(
   row: QuotationRecord,
   currency = "GBP",
-): Quotation & { recordId: string } {
+): Quotation & { recordId: string; clientEmail: string } {
   const items = normalizeInvoiceItems(row.items);
 
   return {
@@ -46,6 +47,7 @@ export function quotationRecordToDisplay(
     id: formatQuotationNumber(row.id, row.created_at),
     date: formatInvoiceDate(row.created_at),
     clientName: row.client_name.trim(),
+    clientEmail: row.client_email?.trim() ?? "",
     description: summarizeInvoiceItems(items),
     amount: formatInvoiceMoney(parseAmount(row.total), currency),
     status: row.status,
