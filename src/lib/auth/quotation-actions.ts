@@ -339,3 +339,46 @@ export async function updateQuotationStatusAction(input: {
     quotation: mapQuotationRecord(data as QuotationRecord),
   };
 }
+
+export async function deleteQuotationAction(input: {
+  quotationId: string;
+}): Promise<QuotationActionResult> {
+  const auth = await requireBillingUser();
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
+  }
+  const { supabase, user } = auth;
+
+  const { error } = await supabase
+    .from(QUOTATIONS_TABLE)
+    .delete()
+    .eq("id", input.quotationId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { ok: false, error: formatQuotationDbError(error.message) };
+  }
+
+  revalidatePath("/dashboard/billing");
+  return { ok: true };
+}
+
+export async function deleteAllQuotationsAction(): Promise<QuotationActionResult> {
+  const auth = await requireBillingUser();
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
+  }
+  const { supabase, user } = auth;
+
+  const { error } = await supabase
+    .from(QUOTATIONS_TABLE)
+    .delete()
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { ok: false, error: formatQuotationDbError(error.message) };
+  }
+
+  revalidatePath("/dashboard/billing");
+  return { ok: true };
+}

@@ -346,3 +346,26 @@ export async function updateInvoiceStatusAction(input: {
     invoice: mapInvoiceRecord(data as InvoiceRecord),
   };
 }
+
+export async function deleteInvoiceAction(input: {
+  invoiceId: string;
+}): Promise<BillingActionResult> {
+  const auth = await requireBillingUser();
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
+  }
+  const { supabase, user } = auth;
+
+  const { error } = await supabase
+    .from(INVOICES_TABLE)
+    .delete()
+    .eq("id", input.invoiceId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { ok: false, error: formatBillingDbError(error.message) };
+  }
+
+  revalidatePath("/dashboard/billing");
+  return { ok: true };
+}

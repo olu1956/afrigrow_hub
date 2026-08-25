@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, CreditCard, Download, Loader2, Mail, Sparkles } from "lucide-react";
+import { Check, CreditCard, Download, Loader2, Mail, Sparkles, Trash2 } from "lucide-react";
 import { CreateInvoiceForm } from "@/components/billing/CreateInvoiceForm";
 import { CreateQuotationForm } from "@/components/billing/CreateQuotationForm";
 import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
 import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
-import { getInvoicesAction, sendInvoiceEmailAction } from "@/lib/auth/billing-actions";
+import { getInvoicesAction, sendInvoiceEmailAction, deleteInvoiceAction } from "@/lib/auth/billing-actions";
 import {
   getQuotationsAction,
   sendQuotationEmailAction,
+  deleteQuotationAction,
+  deleteAllQuotationsAction,
 } from "@/lib/auth/quotation-actions";
 import {
   getSubscriptionAction,
@@ -87,6 +89,8 @@ export function BillingDashboard() {
   const [quotations, setQuotations] = useState<DisplayQuotation[]>([]);
   const [usageStats, setUsageStats] = useState<DashboardStats | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAllQuotations, setDeletingAllQuotations] = useState(false);
 
   const currentPlanId = subscriptionPlanId ?? planIdFromName(business.plan);
   const currentPlan = getPlanById(currentPlanId);
@@ -280,6 +284,68 @@ export function BillingDashboard() {
     }
     setNotice(`Quotation emailed to ${quotation.clientEmail || "the client"}.`);
     void loadQuotations();
+  }
+
+  async function handleDeleteInvoice(invoice: DisplayInvoice) {
+    if (!invoice.recordId || deletingId) return;
+    if (!window.confirm(`Delete invoice ${invoice.id}? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(invoice.recordId);
+    setError(null);
+    const result = await deleteInvoiceAction({ invoiceId: invoice.recordId });
+    setDeletingId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not delete this invoice.");
+      return;
+    }
+    setNotice(`Invoice ${invoice.id} deleted.`);
+    void loadInvoices();
+    void loadUsageStats();
+  }
+
+  async function handleDeleteQuotation(quotation: DisplayQuotation) {
+    if (!quotation.recordId || deletingId || deletingAllQuotations) return;
+    if (!window.confirm(`Delete quotation ${quotation.id}? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(quotation.recordId);
+    setError(null);
+    const result = await deleteQuotationAction({ quotationId: quotation.recordId });
+    setDeletingId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not delete this quotation.");
+      return;
+    }
+    setNotice(`Quotation ${quotation.id} deleted.`);
+    void loadQuotations();
+    void loadUsageStats();
+  }
+
+  async function handleDeleteAllQuotations() {
+    const liveCount = quotations.filter((quotation) => quotation.source === "live").length;
+    if (liveCount === 0 || deletingAllQuotations || deletingId) return;
+    if (
+      !window.confirm(
+        `Delete all ${liveCount} quotation${liveCount === 1 ? "" : "s"}? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingAllQuotations(true);
+    setError(null);
+    const result = await deleteAllQuotationsAction();
+    setDeletingAllQuotations(false);
+    if (!result.ok) {
+      setError(result.error ?? "Could not delete quotations.");
+      return;
+    }
+    setNotice("All quotations deleted.");
+    void loadQuotations();
+    void loadUsageStats();
   }
 
   return (
@@ -540,7 +606,8 @@ export function BillingDashboard() {
                     <th className="pb-3 pr-4 font-medium">Description</th>
                     <th className="pb-3 pr-4 font-medium">Amount</th>
                     <th className="pb-3 pr-4 font-medium">Status</th>
-                    <th className="pb-3 font-medium">Email</th>
+                    <th className="pb-3 pr-4 font-medium">Email</th>
+                    <th className="pb-3 font-medium"> </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -557,12 +624,12 @@ export function BillingDashboard() {
                           {invoice.status}
                         </span>
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4">
                         {invoice.recordId && invoice.source === "live" ? (
                           <button
                             type="button"
                             onClick={() => void handleSendInvoice(invoice)}
-                            disabled={sendingId === invoice.recordId}
+                            disabled={sendingId === invoice.recordId || deletingId === invoice.recordId}
                             className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:opacity-60"
                           >
                             {sendingId === invoice.recordId ? (
@@ -571,6 +638,23 @@ export function BillingDashboard() {
                               <Mail className="h-3.5 w-3.5" />
                             )}
                             Email client
+                          </button>
+                        ) : null}
+                      </td>
+                      <td className="py-3">
+                        {invoice.recordId && invoice.source === "live" ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteInvoice(invoice)}
+                            disabled={deletingId === invoice.recordId || sendingId === invoice.recordId}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline disabled:opacity-60"
+                          >
+                            {deletingId === invoice.recordId ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                            Delete
                           </button>
                         ) : null}
                       </td>
@@ -596,11 +680,28 @@ export function BillingDashboard() {
       <section className={dashboardCardClass}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-semibold text-foreground">Quotation history</h2>
-          {quotations.some((quotation) => quotation.source === "live") ? (
-            <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
-              Live data
-            </span>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {quotations.some((quotation) => quotation.source === "live") ? (
+              <button
+                type="button"
+                onClick={() => void handleDeleteAllQuotations()}
+                disabled={deletingAllQuotations || Boolean(deletingId)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline disabled:opacity-60"
+              >
+                {deletingAllQuotations ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                Delete all
+              </button>
+            ) : null}
+            {quotations.some((quotation) => quotation.source === "live") ? (
+              <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                Live data
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="mt-4 overflow-x-auto">
           {loadingQuotations ? (
@@ -624,7 +725,8 @@ export function BillingDashboard() {
                   <th className="pb-3 pr-4 font-medium">Description</th>
                   <th className="pb-3 pr-4 font-medium">Amount</th>
                   <th className="pb-3 pr-4 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Email</th>
+                  <th className="pb-3 pr-4 font-medium">Email</th>
+                  <th className="pb-3 font-medium"> </th>
                 </tr>
               </thead>
               <tbody>
@@ -645,12 +747,16 @@ export function BillingDashboard() {
                         {quotation.status}
                       </span>
                     </td>
-                    <td className="py-3">
+                    <td className="py-3 pr-4">
                       {quotation.recordId && quotation.source === "live" ? (
                         <button
                           type="button"
                           onClick={() => void handleSendQuotation(quotation)}
-                          disabled={sendingId === quotation.recordId}
+                          disabled={
+                            sendingId === quotation.recordId ||
+                            deletingId === quotation.recordId ||
+                            deletingAllQuotations
+                          }
                           className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:opacity-60"
                         >
                           {sendingId === quotation.recordId ? (
@@ -659,6 +765,27 @@ export function BillingDashboard() {
                             <Mail className="h-3.5 w-3.5" />
                           )}
                           Email client
+                        </button>
+                      ) : null}
+                    </td>
+                    <td className="py-3">
+                      {quotation.recordId && quotation.source === "live" ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteQuotation(quotation)}
+                          disabled={
+                            deletingId === quotation.recordId ||
+                            sendingId === quotation.recordId ||
+                            deletingAllQuotations
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline disabled:opacity-60"
+                        >
+                          {deletingId === quotation.recordId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Delete
                         </button>
                       ) : null}
                     </td>
