@@ -29,7 +29,7 @@ export function ForgotPasswordForm() {
     setLoading(true);
 
     if (authEnabled) {
-      const result = await resetPasswordAction(email.trim());
+      const result = await resetPasswordAction(email.trim(), window.location.origin);
       if (!result.ok) {
         setFormError(result.error ?? "Unable to send reset email.");
         setLoading(false);

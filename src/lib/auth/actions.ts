@@ -110,15 +110,45 @@ export async function signOutAction(): Promise<void> {
   await supabase.auth.signOut();
 }
 
-export async function resetPasswordAction(email: string): Promise<AuthResult> {
+export async function resetPasswordAction(
+  email: string,
+  clientOrigin?: string,
+): Promise<AuthResult> {
   if (!isSupabaseAuthEnabled()) {
     return { ok: true };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: getAuthCallbackUrl("/login"),
+    // Land on update-password after the auth code is exchanged (not localhost /login).
+    redirectTo: getAuthCallbackUrl("/update-password", clientOrigin),
   });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
+export async function updatePasswordAction(password: string): Promise<AuthResult> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: true };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: "Your reset link has expired or is invalid. Please request a new one.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
     return { ok: false, error: error.message };
