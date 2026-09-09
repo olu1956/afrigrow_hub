@@ -14,6 +14,7 @@ import {
   type EnterpriseEnquirySource,
   type EnterpriseEnquiryStatus,
 } from "@/lib/database/enterprise-enquiries";
+import { notifyAdminsOfEnquiry } from "@/lib/mail/admin-notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -78,6 +79,23 @@ async function insertEnquiry(
   }
 
   revalidatePath("/dashboard/admin/enquiries");
+
+  try {
+    await notifyAdminsOfEnquiry({
+      name: String(payload.name ?? ""),
+      email: String(payload.email ?? ""),
+      companyName: String(payload.company_name ?? ""),
+      subject: String(payload.subject ?? ""),
+      message: String(payload.message ?? ""),
+      enquiryType: String(payload.enquiry_type ?? ""),
+      source: String(payload.source ?? ""),
+    });
+  } catch (notifyError) {
+    console.error(
+      "enquiry admin notification failed:",
+      notifyError instanceof Error ? notifyError.message : notifyError,
+    );
+  }
 
   return { ok: true };
 }

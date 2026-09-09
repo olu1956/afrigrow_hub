@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseAuthEnabled } from "@/lib/auth/config";
 import { USERS_PROFILE_TABLE } from "@/lib/database/users-profile";
 import { BUSINESSES_TABLE } from "@/lib/database/businesses";
+import { notifyAdminsOfSignup } from "@/lib/mail/admin-notifications";
 import { getAuthCallbackUrl } from "@/lib/site-url";
 
 export type AuthResult = {
@@ -73,6 +74,22 @@ export async function signUpAction(input: {
     }
     if (businessError) {
       console.error("signUp business upsert failed:", businessError.message);
+    }
+
+    try {
+      await notifyAdminsOfSignup({
+        fullName: input.fullName,
+        businessName: input.businessName,
+        email: input.email,
+        businessType: input.businessType,
+        country: input.country,
+        source: "email",
+      });
+    } catch (notifyError) {
+      console.error(
+        "signUp admin notification failed:",
+        notifyError instanceof Error ? notifyError.message : notifyError,
+      );
     }
   }
 
