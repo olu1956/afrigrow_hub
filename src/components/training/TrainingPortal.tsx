@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   Calendar,
@@ -19,6 +20,7 @@ import {
   cancelEnrollmentBySessionAction,
   createCourseAction,
   createSessionAction,
+  emailSessionNextStepsAction,
   enrollInSessionAction,
   getTrainingPortalDataAction,
   registerAsProviderAction,
@@ -364,6 +366,7 @@ export function TrainingPortal() {
   const [loading, setLoading] = useState(authEnabled);
   const [saving, setSaving] = useState(false);
   const [enrollingSessionId, setEnrollingSessionId] = useState<string | null>(null);
+  const [emailingSessionId, setEmailingSessionId] = useState<string | null>(null);
   const [uploadingFlyerCourseId, setUploadingFlyerCourseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupWarning, setSetupWarning] = useState<string | null>(null);
@@ -381,6 +384,16 @@ export function TrainingPortal() {
   const [sessionZoomUrl, setSessionZoomUrl] = useState("");
   const [sessionMaxSeats, setSessionMaxSeats] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const rosterSessions = useMemo(() => {
+    const seen = new Map<string, { id: string; title: string }>();
+    for (const entry of providerRoster) {
+      if (!seen.has(entry.sessionId)) {
+        seen.set(entry.sessionId, { id: entry.sessionId, title: entry.sessionTitle });
+      }
+    }
+    return [...seen.values()];
+  }, [providerRoster]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -505,7 +518,7 @@ export function TrainingPortal() {
     setSuccessMessage(
       wasAlreadyEnrolled
         ? "Enrollment details updated. Check My courses for your saved contact information."
-        : "Enrollment confirmed. Open the My courses tab to see your session and contact details.",
+        : "Enrollment confirmed. We emailed you the session details and after-training checklist.",
     );
     await loadData();
     setTab("my-learning");
@@ -555,6 +568,24 @@ export function TrainingPortal() {
 
     setSuccessMessage("Enrollment removed.");
     await loadData();
+  }
+
+  async function handleEmailSessionNextSteps(sessionId: string) {
+    setEmailingSessionId(sessionId);
+    setError(null);
+    setSuccessMessage(null);
+
+    const result = await emailSessionNextStepsAction(sessionId);
+    setEmailingSessionId(null);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not email attendees.");
+      return;
+    }
+
+    setSuccessMessage(
+      `Next-steps checklist emailed to ${result.sent ?? 0} attendee${result.sent === 1 ? "" : "s"}.`,
+    );
   }
 
   async function handleRegisterProvider(e: FormEvent) {
@@ -991,6 +1022,12 @@ export function TrainingPortal() {
                   </p>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href="/dashboard/next-steps"
+                    className="inline-flex items-center rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white"
+                  >
+                    After training checklist
+                  </Link>
                   {enrollment.zoomUrl && isSessionUpcoming(enrollment.startsAt) ? (
                     <a
                       href={enrollment.zoomUrl}
@@ -1388,8 +1425,26 @@ export function TrainingPortal() {
               <div className="space-y-4">
                 <h2 className="text-lg font-bold text-foreground">Enrolled trainees</h2>
                 <p className="text-sm text-muted">
-                  Names and contact details submitted when members enroll in your sessions.
+                  Names and contact details submitted when members enroll in your sessions. After
+                  the Zoom, email them the next-steps checklist in one click.
                 </p>
+                {rosterSessions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {rosterSessions.map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        disabled={Boolean(emailingSessionId)}
+                        onClick={() => void handleEmailSessionNextSteps(session.id)}
+                        className="rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-60"
+                      >
+                        {emailingSessionId === session.id
+                          ? "Sending…"
+                          : `Email next steps — ${session.title}`}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {providerRoster.length === 0 ? (
                   <p className="text-sm text-muted">No enrollments yet.</p>
                 ) : (

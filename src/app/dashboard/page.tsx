@@ -254,6 +254,21 @@ export default function DashboardOverviewPage() {
         </div>
       }
     >
+      <section className="rounded-2xl border border-primary/20 bg-primary-light/40 p-5">
+        <h2 className="font-semibold text-foreground">After training</h2>
+        <p className="mt-1 text-sm text-muted">
+          Finished a live session? Complete the five next steps so the Hub starts working for your
+          business this week.
+        </p>
+        <Link
+          href="/dashboard/next-steps"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          Open the checklist
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </section>
+
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">AI Agents</h2>

@@ -30,6 +30,8 @@ import {
   type ProviderEnrollmentRosterEntry,
   type TrainingSessionView,
 } from "@/lib/training-data";
+import { isBillingMailConfigured } from "@/lib/mail/resend";
+import { sendPostTrainingFollowUpEmail } from "@/lib/mail/post-training";
 import { createClient } from "@/lib/supabase/server";
 
 export type TrainingActionResult = {
@@ -743,7 +745,7 @@ export async function enrollInSessionAction(
 
   const { data: session, error: sessionError } = await supabase
     .from(TRAINING_SESSIONS_TABLE)
-    .select("id, course_id, max_seats, status, starts_at")
+    .select("id, course_id, title, zoom_url, max_seats, status, starts_at")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -850,7 +852,176 @@ export async function enrollInSessionAction(
   }
 
   revalidatePath("/dashboard/training");
+  await notifyEnrolleeNextSteps(supabase, {
+    name: traineeName,
+    email: traineeEmail,
+    courseId: row.course_id,
+    sessionTitle: row.title,
+    zoomUrl: row.zoom_url,
+  });
   return { ok: true };
+}
+
+async function notifyEnrolleeNextSteps(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    name: string;
+    email: string;
+    courseId: string;
+    sessionTitle: string;
+    zoomUrl: string;
+  },
+): Promise<void> {
+  const { data: course } = await supabase
+    .from(TRAINING_COURSES_TABLE)
+    .select("title")
+    .eq("id", input.courseId)
+    .maybeSingle();
+
+  try {
+    const result = await sendPostTrainingFollowUpEmail({
+      fullName: input.name,
+      email: input.email,
+      courseTitle: (course as TrainingCourse | null)?.title,
+      sessionTitle: input.sessionTitle,
+      zoomUrl: input.zoomUrl,
+      variant: "enrolled",
+    });
+    if (!result.ok) {
+      console.error("Enrollment next-steps email failed:", result.error);
+    }
+  } catch (notifyError) {
+    console.error(
+      "Enrollment next-steps email failed:",
+      notifyError instanceof Error ? notifyError.message : notifyError,
+    );
+  }
+}
+
+export async function sendMyNextStepsEmailAction(): Promise<TrainingActionResult> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: false, error: "Supabase is not configured." };
+  }
+
+  if (!isBillingMailConfigured()) {
+    return { ok: false, error: "Email sending is not configured yet." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return { ok: false, error: "You must be signed in." };
+  }
+
+  const { data: profile } = await supabase
+    .from(USERS_PROFILE_TABLE)
+    .select("full_name")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const result = await sendPostTrainingFollowUpEmail({
+    fullName:
+      (profile as { full_name?: string } | null)?.full_name?.trim() ||
+      String((user.user_metadata as { full_name?: string } | undefined)?.full_name ?? "").trim() ||
+      user.email,
+    email: user.email,
+    variant: "after-session",
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  return { ok: true };
+}
+
+export async function emailSessionNextStepsAction(
+  sessionId: string,
+): Promise<TrainingActionResult & { sent?: number }> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: false, error: "Supabase is not configured." };
+  }
+
+  if (!isBillingMailConfigured()) {
+    return { ok: false, error: "Email sending is not configured yet." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "You must be signed in." };
+  }
+
+  const { data: session, error: sessionError } = await supabase
+    .from(TRAINING_SESSIONS_TABLE)
+    .select("id, course_id, title, zoom_url")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (sessionError || !session) {
+    return { ok: false, error: "Session not found." };
+  }
+
+  const sessionRow = session as TrainingSession;
+
+  const { data: course, error: courseError } = await supabase
+    .from(TRAINING_COURSES_TABLE)
+    .select("id, title, provider_user_id")
+    .eq("id", sessionRow.course_id)
+    .maybeSingle();
+
+  if (courseError || !course) {
+    return { ok: false, error: "Course not found." };
+  }
+
+  const courseRow = course as TrainingCourse;
+  if (courseRow.provider_user_id !== user.id) {
+    return { ok: false, error: "You can only email attendees of your own sessions." };
+  }
+
+  const { data: enrollments, error: enrollError } = await supabase
+    .from(TRAINING_ENROLLMENTS_TABLE)
+    .select("trainee_name, trainee_email")
+    .eq("session_id", sessionId)
+    .eq("status", "enrolled");
+
+  if (enrollError) {
+    return { ok: false, error: formatTrainingDbError(enrollError.message) };
+  }
+
+  const recipients = (enrollments ?? []).filter(
+    (row) => String((row as TrainingEnrollment).trainee_email ?? "").trim(),
+  );
+
+  if (recipients.length === 0) {
+    return { ok: false, error: "No attendee emails on this session yet." };
+  }
+
+  let sent = 0;
+  for (const row of recipients) {
+    const enrollment = row as TrainingEnrollment;
+    const result = await sendPostTrainingFollowUpEmail({
+      fullName: enrollment.trainee_name || "there",
+      email: enrollment.trainee_email,
+      courseTitle: courseRow.title,
+      sessionTitle: sessionRow.title,
+      zoomUrl: sessionRow.zoom_url,
+      variant: "after-session",
+    });
+    if (result.ok) sent += 1;
+  }
+
+  if (sent === 0) {
+    return { ok: false, error: "Could not send the checklist emails." };
+  }
+
+  return { ok: true, sent };
 }
 
 export async function cancelEnrollmentAction(enrollmentId: string): Promise<TrainingActionResult> {
