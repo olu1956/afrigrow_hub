@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { notifyAdminsOfSignup } from "@/lib/mail/admin-notifications";
+import { sendMemberWelcomeEmail } from "@/lib/mail/member-welcome";
 import { createClient } from "@/lib/supabase/server";
 
 function safeNextPath(next: string | null): string {
@@ -31,16 +32,26 @@ async function notifyIfFreshGoogleSignup(user: User | null): Promise<void> {
     name?: string;
   };
 
+  const fullName = meta.full_name?.trim() || meta.name?.trim() || "Google user";
+  const email = user.email ?? "";
+
   try {
-    await notifyAdminsOfSignup({
-      fullName: meta.full_name?.trim() || meta.name?.trim() || "Google user",
-      businessName: "Untitled business",
-      email: user.email ?? "",
-      source: "google",
-    });
+    await Promise.all([
+      notifyAdminsOfSignup({
+        fullName,
+        businessName: "Untitled business",
+        email,
+        source: "google",
+      }),
+      sendMemberWelcomeEmail({
+        fullName,
+        businessName: "Untitled business",
+        email,
+      }),
+    ]);
   } catch (notifyError) {
     console.error(
-      "Google signup admin notification failed:",
+      "Google signup notification emails failed:",
       notifyError instanceof Error ? notifyError.message : notifyError,
     );
   }

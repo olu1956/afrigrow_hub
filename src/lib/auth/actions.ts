@@ -5,6 +5,7 @@ import { isSupabaseAuthEnabled } from "@/lib/auth/config";
 import { USERS_PROFILE_TABLE } from "@/lib/database/users-profile";
 import { BUSINESSES_TABLE } from "@/lib/database/businesses";
 import { notifyAdminsOfSignup } from "@/lib/mail/admin-notifications";
+import { sendMemberWelcomeEmail } from "@/lib/mail/member-welcome";
 import { getAuthCallbackUrl } from "@/lib/site-url";
 
 export type AuthResult = {
@@ -77,17 +78,24 @@ export async function signUpAction(input: {
     }
 
     try {
-      await notifyAdminsOfSignup({
-        fullName: input.fullName,
-        businessName: input.businessName,
-        email: input.email,
-        businessType: input.businessType,
-        country: input.country,
-        source: "email",
-      });
+      await Promise.all([
+        notifyAdminsOfSignup({
+          fullName: input.fullName,
+          businessName: input.businessName,
+          email: input.email,
+          businessType: input.businessType,
+          country: input.country,
+          source: "email",
+        }),
+        sendMemberWelcomeEmail({
+          fullName: input.fullName,
+          businessName: input.businessName,
+          email: input.email,
+        }),
+      ]);
     } catch (notifyError) {
       console.error(
-        "signUp admin notification failed:",
+        "signUp notification emails failed:",
         notifyError instanceof Error ? notifyError.message : notifyError,
       );
     }
