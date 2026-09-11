@@ -107,27 +107,30 @@ function buildRecentActivity(
 export default function DashboardOverviewPage() {
   const { session, hydrated, authEnabled } = useSession();
   const { business } = useDashboardBusiness();
-  const [profileStrength, setProfileStrength] = useState<number | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [listedInDirectory, setListedInDirectory] = useState(false);
   const [savedProfileStrength, setSavedProfileStrength] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (hydrated) {
-      setProfileStrength(
-        calculateProfileStrength(loadProfilePreview(session)),
-      );
-    }
-  }, [hydrated, session]);
+  // Freeze the first hydrated score so a later session refresh cannot swap the
+  // directory card from "complete your profile" to "save to appear".
+  const profileStrength = useMemo(() => {
+    if (!hydrated) return null;
+    return calculateProfileStrength(loadProfilePreview(session));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- freeze score on first hydration
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated || !authEnabled) return;
+
+    let active = true;
 
     async function loadStats() {
       const [statsResult, directoryStatus] = await Promise.all([
         getDashboardStatsAction(),
         getMyDirectoryStatusAction(),
       ]);
+
+      if (!active) return;
 
       if (statsResult.ok && statsResult.stats) {
         setStats(statsResult.stats);
@@ -145,6 +148,9 @@ export default function DashboardOverviewPage() {
     }
 
     void loadStats();
+    return () => {
+      active = false;
+    };
   }, [authEnabled, hydrated]);
 
   const recentItems = useMemo(
@@ -171,15 +177,14 @@ export default function DashboardOverviewPage() {
       ? Math.max(0, 100 - fundingReadiness)
       : null;
 
-  const effectiveStrength = savedProfileStrength ?? profileStrength;
-  const directoryNudge =
-    effectiveStrength !== null
-      ? getDirectoryNudge({
-          strength: effectiveStrength,
-          savedStrength: savedProfileStrength,
-          listed: listedInDirectory,
-        })
-      : null;
+  const directoryNudge = useMemo(() => {
+    if (profileStrength === null) return null;
+    return getDirectoryNudge({
+      strength: profileStrength,
+      savedStrength: savedProfileStrength,
+      listed: listedInDirectory,
+    });
+  }, [listedInDirectory, profileStrength, savedProfileStrength]);
 
   return (
     <DashboardPageLayout
@@ -204,19 +209,19 @@ export default function DashboardOverviewPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Profile strength"
-            value={effectiveStrength !== null ? `${effectiveStrength}%` : "—"}
+            value={profileStrength !== null ? `${profileStrength}%` : "—"}
             change={
               listedInDirectory
                 ? "Live in the directory"
-                : effectiveStrength !== null && effectiveStrength >= DIRECTORY_MIN_PROFILE_SCORE
+                : profileStrength !== null && profileStrength >= DIRECTORY_MIN_PROFILE_SCORE
                   ? "Save profile to go live"
-                  : effectiveStrength !== null && effectiveStrength >= 70
+                  : profileStrength !== null && profileStrength >= 70
                     ? "Looking good — keep going"
                     : `Reach ${DIRECTORY_MIN_PROFILE_SCORE}% for directory`
             }
             positive={
               listedInDirectory ||
-              (effectiveStrength !== null && effectiveStrength >= DIRECTORY_MIN_PROFILE_SCORE)
+              (profileStrength !== null && profileStrength >= DIRECTORY_MIN_PROFILE_SCORE)
             }
           />
           <StatCard
@@ -337,10 +342,10 @@ export default function DashboardOverviewPage() {
           <p className="mt-2 text-sm leading-relaxed text-white/85">
             {listedInDirectory
               ? "Your business profile is discoverable in the AfriGrow Directory. Keep it updated to attract more enquiries."
-              : effectiveStrength !== null && effectiveStrength >= DIRECTORY_MIN_PROFILE_SCORE
+              : profileStrength !== null && profileStrength >= DIRECTORY_MIN_PROFILE_SCORE
                 ? "Your profile score qualifies for the directory — save in Profile Agent to go live."
-                : effectiveStrength !== null
-                  ? `You're ${Math.max(0, DIRECTORY_MIN_PROFILE_SCORE - effectiveStrength)}% away from appearing in the Business Directory.`
+                : profileStrength !== null
+                  ? `You're ${Math.max(0, DIRECTORY_MIN_PROFILE_SCORE - profileStrength)}% away from appearing in the Business Directory.`
                   : "Complete your business profile to unlock better AI marketing and matching recommendations."}
           </p>
           <Link

@@ -29,7 +29,9 @@ type DirectoryNudgeInput = {
 
 export function getDirectoryNudge(input: DirectoryNudgeInput): DirectoryNudgeContent {
   const { strength, listed = false } = input;
-  const savedStrength = input.savedStrength ?? strength;
+  const savedKnown = input.savedStrength;
+  const savedStrength = savedKnown ?? strength;
+  const pointsToDirectory = Math.max(0, DIRECTORY_MIN_PROFILE_SCORE - strength);
 
   if (listed && savedStrength >= DIRECTORY_FEATURED_MIN_SCORE) {
     return {
@@ -52,29 +54,8 @@ export function getDirectoryNudge(input: DirectoryNudgeInput): DirectoryNudgeCon
     };
   }
 
-  if (strength >= DIRECTORY_MIN_PROFILE_SCORE && savedStrength < DIRECTORY_MIN_PROFILE_SCORE) {
-    return {
-      variant: "ready_save",
-      title: "Ready for the directory",
-      message: `Your profile is at ${strength}%. Save your profile to go live in the Business Directory.`,
-      ctaLabel: "Save profile",
-      ctaHref: "/dashboard/profile",
-    };
-  }
-
-  if (strength >= DIRECTORY_MIN_PROFILE_SCORE && savedStrength >= DIRECTORY_MIN_PROFILE_SCORE && !listed) {
-    return {
-      variant: "ready_save",
-      title: "Save to appear in the directory",
-      message:
-        "Your saved score may be out of date. Save your profile again so the directory picks up your latest details.",
-      ctaLabel: "Save profile",
-      ctaHref: "/dashboard/profile",
-    };
-  }
-
-  const pointsToDirectory = Math.max(0, DIRECTORY_MIN_PROFILE_SCORE - strength);
-
+  // Live completeness wins over a stale stored score. Members still below 40%
+  // should see the complete-profile prompt, not a "save again" message.
   if (pointsToDirectory > 0 && pointsToDirectory <= 15) {
     return {
       variant: "almost_there",
@@ -86,12 +67,33 @@ export function getDirectoryNudge(input: DirectoryNudgeInput): DirectoryNudgeCon
     };
   }
 
+  if (pointsToDirectory > 15) {
+    return {
+      variant: "below_threshold",
+      title: "Get discovered in the directory",
+      message: `Complete your profile to ${DIRECTORY_MIN_PROFILE_SCORE}% to appear in the AfriGrow Business Directory.`,
+      ctaLabel: "Build your profile",
+      ctaHref: "/dashboard/profile",
+      pointsToDirectory,
+    };
+  }
+
+  if (savedKnown == null || savedKnown < DIRECTORY_MIN_PROFILE_SCORE) {
+    return {
+      variant: "ready_save",
+      title: "Ready for the directory",
+      message: `Your profile is at ${strength}%. Save your profile to go live in the Business Directory.`,
+      ctaLabel: "Save profile",
+      ctaHref: "/dashboard/profile",
+    };
+  }
+
   return {
-    variant: "below_threshold",
-    title: "Get discovered in the directory",
-    message: `Complete your profile to ${DIRECTORY_MIN_PROFILE_SCORE}% to appear in the AfriGrow Business Directory.`,
-    ctaLabel: "Build your profile",
+    variant: "ready_save",
+    title: "Save to appear in the directory",
+    message:
+      "Your saved score may be out of date. Save your profile again so the directory picks up your latest details.",
+    ctaLabel: "Save profile",
     ctaHref: "/dashboard/profile",
-    pointsToDirectory,
   };
 }
