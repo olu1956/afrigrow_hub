@@ -16,6 +16,15 @@ export default function NextStepsPage() {
       description="Five actions so tonight’s session becomes real progress this week."
       action={<NextStepsEmailButton />}
     >
+      <p className="rounded-2xl border border-primary/15 bg-primary-light/30 px-4 py-3 text-sm text-muted">
+        This list is what to do after the live session. To finish a course and print a certificate,
+        go to{" "}
+        <Link href="/dashboard/training?tab=my-learning" className="font-semibold text-primary hover:underline">
+          Training → My courses
+        </Link>{" "}
+        and click <span className="font-semibold text-foreground">Mark complete</span>. Tick a step
+        here when you have done it.
+      </p>
       <PostTrainingChecklist loggedIn />
       <p className="text-sm text-muted">
         Share the public version in Zoom chat:{" "}

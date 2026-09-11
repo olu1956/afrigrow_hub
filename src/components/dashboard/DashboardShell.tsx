@@ -53,12 +53,16 @@ export function DashboardShell({
   );
 
   const headerTitle = current?.label ?? "Dashboard";
+  const isCertificatePage = pathname.includes("/training/certificate/");
 
   /**
    * Same scroll model as the public SitePageLayout:
    * one document-level scroll. Sidebar is fixed (out of flow).
    * No overflow-y on main, no sticky sidebar.
    */
+  if (isCertificatePage) {
+    return <div className="min-h-dvh bg-background">{children}</div>;
+  }
   return (
     <div className="afrigrow-dashboard min-h-dvh bg-background">
       <Sidebar

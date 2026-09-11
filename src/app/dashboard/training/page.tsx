@@ -4,7 +4,7 @@ import { TrainingPortal } from "@/components/training/TrainingPortal";
 export const metadata: Metadata = {
   title: "Training — AfriGrow Hub",
   description:
-    "Live courses and workshops for African SMEs — enroll in sessions or publish training as a provider.",
+    "Short programmes for African SMEs — live Zoom sessions, modules, attendance, and a simple certificate.",
 };
 
 export default function TrainingPage() {

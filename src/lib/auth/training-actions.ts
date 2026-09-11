@@ -20,19 +20,32 @@ import {
   TRAINING_SESSIONS_TABLE,
   type TrainingSession,
 } from "@/lib/database/training-sessions";
+import { TRAINING_LESSON_PROGRESS_TABLE } from "@/lib/database/training-lesson-progress";
 import {
-  demoMyEnrollments,
-  demoTrainingCourses,
-  type TrainingCourseView,
-  type TrainingEnrollmentPrefill,
-  type TrainingEnrollmentView,
-  type TrainingProviderView,
-  type ProviderEnrollmentRosterEntry,
-  type TrainingSessionView,
-} from "@/lib/training-data";
+  TRAINING_LESSONS_TABLE,
+  type TrainingLesson,
+} from "@/lib/database/training-lessons";
 import { isBillingMailConfigured } from "@/lib/mail/resend";
 import { sendPostTrainingFollowUpEmail } from "@/lib/mail/post-training";
 import { createClient } from "@/lib/supabase/server";
+import {
+  formatTrainingDbError,
+  isMissingTrainingLmsError,
+  isMissingTrainingTableError,
+} from "@/lib/training/db-errors";
+import {
+  ACTIVE_TRAINING_ENROLLMENT_STATUSES,
+  demoMyEnrollments,
+  demoTrainingCourses,
+  isActiveEnrollmentStatus,
+  type ProviderEnrollmentRosterEntry,
+  type TrainingCourseView,
+  type TrainingEnrollmentPrefill,
+  type TrainingEnrollmentView,
+  type TrainingLessonView,
+  type TrainingProviderView,
+  type TrainingSessionView,
+} from "@/lib/training-data";
 
 export type TrainingActionResult = {
   ok: boolean;
@@ -49,26 +62,6 @@ export type TrainingPortalDataResult = TrainingActionResult & {
   enrollmentPrefill?: TrainingEnrollmentPrefill;
   isProvider?: boolean;
 };
-
-function isMissingTrainingTableError(message: string): boolean {
-  return /training_|schema cache|relation .* does not exist/i.test(message);
-}
-
-function formatTrainingDbError(message: string): string {
-  if (isMissingTrainingTableError(message)) {
-    return "Run migration 20260708150000_create_training_portal.sql in Supabase SQL Editor, then refresh this page.";
-  }
-
-  if (message.includes("trainee_name") || message.includes("trainee_email")) {
-    return "Run migration 20260708160000_training_enrollment_contact_details.sql in Supabase SQL Editor, then refresh this page.";
-  }
-
-  if (message.includes("flyer_image_url") || /training-flyers/i.test(message)) {
-    return "Run migration 20260820120000_training_course_flyer.sql in Supabase SQL Editor, then refresh this page.";
-  }
-
-  return message;
-}
 
 async function getEnrollmentPrefill(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -117,6 +110,7 @@ function buildSessionView(
   enrollmentCount: number,
   userEnrollment: TrainingEnrollment | undefined,
 ): TrainingSessionView {
+  const enrollmentStatus = userEnrollment?.status ?? null;
   return {
     id: session.id,
     courseId: session.course_id,
@@ -127,16 +121,36 @@ function buildSessionView(
     maxSeats: session.max_seats,
     status: session.status,
     enrollmentCount,
-    isEnrolled: userEnrollment?.status === "enrolled",
+    isEnrolled: isActiveEnrollmentStatus(enrollmentStatus),
     enrollmentId: userEnrollment?.id ?? null,
-    hasPreviousAttempt: Boolean(userEnrollment && userEnrollment.status !== "enrolled"),
+    enrollmentStatus,
+    hasPreviousAttempt: Boolean(userEnrollment && !isActiveEnrollmentStatus(enrollmentStatus)),
   };
+}
+
+function toLessonViews(
+  lessons: TrainingLesson[],
+  courseId: string,
+  completedIds: Set<string>,
+): TrainingLessonView[] {
+  return lessons
+    .filter((lesson) => lesson.course_id === courseId)
+    .map((lesson) => ({
+      id: lesson.id,
+      courseId: lesson.course_id,
+      title: lesson.title,
+      notes: lesson.notes ?? "",
+      videoUrl: lesson.video_url ?? "",
+      sortOrder: lesson.sort_order,
+      completed: completedIds.has(lesson.id),
+    }));
 }
 
 function buildCourseView(
   course: TrainingCourse,
   providerName: string,
   sessions: TrainingSessionView[],
+  lessons: TrainingLessonView[] = [],
 ): TrainingCourseView {
   return {
     id: course.id,
@@ -147,6 +161,7 @@ function buildCourseView(
     status: course.status,
     providerName,
     sessions,
+    lessons,
   };
 }
 
@@ -154,6 +169,7 @@ function buildEnrollmentView(
   enrollment: TrainingEnrollment,
   course: TrainingCourse,
   session: TrainingSession,
+  lessons: TrainingLessonView[],
 ): TrainingEnrollmentView {
   return {
     id: enrollment.id,
@@ -169,7 +185,68 @@ function buildEnrollmentView(
     traineeEmail: enrollment.trainee_email ?? "",
     traineePhone: enrollment.trainee_phone ?? "",
     traineeBusiness: enrollment.trainee_business ?? "",
+    attended: Boolean(enrollment.attended),
+    attendedAt: enrollment.attended_at ?? null,
+    completedAt: enrollment.completed_at ?? null,
+    selfCompleted: Boolean(enrollment.self_completed),
+    lessonCount: lessons.length,
+    lessonsCompleted: lessons.filter((lesson) => lesson.completed).length,
+    lessons,
   };
+}
+
+async function fetchLessonsForCourses(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  courseIds: string[],
+): Promise<{ lessons: TrainingLesson[]; warning?: string; error?: string }> {
+  if (courseIds.length === 0) {
+    return { lessons: [] };
+  }
+
+  const { data, error } = await supabase
+    .from(TRAINING_LESSONS_TABLE)
+    .select("*")
+    .in("course_id", courseIds)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (isMissingTrainingLmsError(error.message) || isMissingTrainingTableError(error.message)) {
+      return { lessons: [], warning: formatTrainingDbError(error.message) };
+    }
+    return { lessons: [], error: formatTrainingDbError(error.message) };
+  }
+
+  return { lessons: (data ?? []) as TrainingLesson[] };
+}
+
+async function fetchCompletedLessonIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  lessonIds: string[],
+): Promise<{ completedIds: Set<string>; warning?: string }> {
+  const completedIds = new Set<string>();
+  if (lessonIds.length === 0) {
+    return { completedIds };
+  }
+
+  const { data, error } = await supabase
+    .from(TRAINING_LESSON_PROGRESS_TABLE)
+    .select("lesson_id")
+    .eq("user_id", userId)
+    .in("lesson_id", lessonIds);
+
+  if (error) {
+    if (isMissingTrainingLmsError(error.message) || isMissingTrainingTableError(error.message)) {
+      return { completedIds, warning: formatTrainingDbError(error.message) };
+    }
+    return { completedIds, warning: formatTrainingDbError(error.message) };
+  }
+
+  for (const row of data ?? []) {
+    completedIds.add((row as { lesson_id: string }).lesson_id);
+  }
+  return { completedIds };
 }
 
 async function fetchProviderForUser(
@@ -244,7 +321,7 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
     }
 
     const myEnrollmentRows = (myEnrollmentRowsRaw ?? []) as TrainingEnrollment[];
-    const myEnrollments = myEnrollmentRows.filter((item) => item.status === "enrolled");
+    const myEnrollments = myEnrollmentRows.filter((item) => isActiveEnrollmentStatus(item.status));
     const enrollmentBySession = new Map(
       myEnrollmentRows.map((item) => [item.session_id, item]),
     );
@@ -277,7 +354,7 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
         .from(TRAINING_ENROLLMENTS_TABLE)
         .select("session_id")
         .in("session_id", sessionIds)
-        .eq("status", "enrolled");
+        .in("status", ACTIVE_TRAINING_ENROLLMENT_STATUSES);
 
       if (countError) {
         return { ok: false, error: formatTrainingDbError(countError.message) };
@@ -306,6 +383,26 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       }
     }
 
+    const lessonCourseIds = [
+      ...new Set([
+        ...courseIds,
+        ...myEnrollmentRows.map((item) => item.course_id),
+      ]),
+    ];
+    const lessonResult = await fetchLessonsForCourses(supabase, lessonCourseIds);
+    if (lessonResult.error) {
+      return { ok: false, error: lessonResult.error };
+    }
+    let lmsWarning = lessonResult.warning;
+    const allLessons = lessonResult.lessons;
+    const progressResult = await fetchCompletedLessonIds(
+      supabase,
+      user.id,
+      allLessons.map((lesson) => lesson.id),
+    );
+    lmsWarning = lmsWarning ?? progressResult.warning;
+    const completedLessonIds = progressResult.completedIds;
+
     const catalog: TrainingCourseView[] = (publishedCourses ?? []).map((row) => {
       const course = row as TrainingCourse;
       const courseSessions = sessions
@@ -322,6 +419,7 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
         course,
         providerNames.get(course.provider_id) ?? "Training provider",
         courseSessions,
+        toLessonViews(allLessons, course.id, completedLessonIds),
       );
     });
 
@@ -357,8 +455,9 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
       .map((enrollment) => {
         const course = enrollmentCourses.get(enrollment.course_id);
         const session = enrollmentSessions.get(enrollment.session_id);
+        const lessons = toLessonViews(allLessons, enrollment.course_id, completedLessonIds);
         if (course && session) {
-          return buildEnrollmentView(enrollment, course, session);
+          return buildEnrollmentView(enrollment, course, session, lessons);
         }
 
         return {
@@ -375,12 +474,19 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
           traineeEmail: enrollment.trainee_email ?? "",
           traineePhone: enrollment.trainee_phone ?? "",
           traineeBusiness: enrollment.trainee_business ?? "",
+          attended: Boolean(enrollment.attended),
+          attendedAt: enrollment.attended_at ?? null,
+          completedAt: enrollment.completed_at ?? null,
+          selfCompleted: Boolean(enrollment.self_completed),
+          lessonCount: lessons.length,
+          lessonsCompleted: lessons.filter((lesson) => lesson.completed).length,
+          lessons,
         };
       });
 
     let providerCourses: TrainingCourseView[] = [];
     let providerView: TrainingProviderView | null = null;
-    let providerRoster: ProviderEnrollmentRosterEntry[] = [];
+    const providerRoster: ProviderEnrollmentRosterEntry[] = [];
 
     const enrollmentPrefill = await getEnrollmentPrefill(
       supabase,
@@ -407,8 +513,45 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
 
       const ownCourseIds = (ownCourses ?? []).map((c) => (c as TrainingCourse).id);
       let ownSessions: TrainingSession[] = [];
+      const providerEnrollmentCounts = new Map<string, number>();
 
       if (ownCourseIds.length > 0) {
+        const ownLessonsResult = await fetchLessonsForCourses(supabase, ownCourseIds);
+        lmsWarning = lmsWarning ?? ownLessonsResult.warning;
+        if (ownLessonsResult.error) {
+          return { ok: false, error: ownLessonsResult.error };
+        }
+        const ownLessons = ownLessonsResult.lessons;
+        const lessonCountByCourse = new Map<string, number>();
+        for (const lesson of ownLessons) {
+          lessonCountByCourse.set(
+            lesson.course_id,
+            (lessonCountByCourse.get(lesson.course_id) ?? 0) + 1,
+          );
+        }
+
+        const ownLessonIds = ownLessons.map((lesson) => lesson.id);
+        const completedByUserCourse = new Map<string, number>();
+        if (ownLessonIds.length > 0) {
+          const { data: progressRows, error: progressError } = await supabase
+            .from(TRAINING_LESSON_PROGRESS_TABLE)
+            .select("lesson_id, user_id")
+            .in("lesson_id", ownLessonIds);
+
+          if (progressError) {
+            lmsWarning = lmsWarning ?? formatTrainingDbError(progressError.message);
+          } else {
+            const courseByLesson = new Map(ownLessons.map((lesson) => [lesson.id, lesson.course_id]));
+            for (const row of progressRows ?? []) {
+              const progress = row as { lesson_id: string; user_id: string };
+              const courseId = courseByLesson.get(progress.lesson_id);
+              if (!courseId) continue;
+              const key = `${progress.user_id}:${courseId}`;
+              completedByUserCourse.set(key, (completedByUserCourse.get(key) ?? 0) + 1);
+            }
+          }
+        }
+
         const { data: ownSessionRows } = await supabase
           .from(TRAINING_SESSIONS_TABLE)
           .select("*")
@@ -417,47 +560,48 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
 
         ownSessions = (ownSessionRows ?? []) as TrainingSession[];
 
-        const ownSessionIds = ownSessions.map((s) => s.id);
-        const providerEnrollmentCounts = new Map<string, number>();
+        const { data: providerEnrollments } = await supabase
+          .from(TRAINING_ENROLLMENTS_TABLE)
+          .select("*")
+          .in("course_id", ownCourseIds)
+          .in("status", ACTIVE_TRAINING_ENROLLMENT_STATUSES)
+          .order("enrolled_at", { ascending: false });
 
-        if (ownSessionIds.length > 0) {
-          const { data: providerEnrollments } = await supabase
-            .from(TRAINING_ENROLLMENTS_TABLE)
-            .select("*")
-            .in("course_id", ownCourseIds)
-            .eq("status", "enrolled")
-            .order("enrolled_at", { ascending: false });
+        const courseTitleById = new Map(
+          (ownCourses ?? []).map((c) => [(c as TrainingCourse).id, (c as TrainingCourse).title]),
+        );
+        const sessionById = new Map(ownSessions.map((s) => [s.id, s]));
 
-          const courseTitleById = new Map(
-            (ownCourses ?? []).map((c) => [(c as TrainingCourse).id, (c as TrainingCourse).title]),
+        for (const row of providerEnrollments ?? []) {
+          const enrollment = row as TrainingEnrollment;
+          providerEnrollmentCounts.set(
+            enrollment.session_id,
+            (providerEnrollmentCounts.get(enrollment.session_id) ?? 0) + 1,
           );
-          const sessionById = new Map(ownSessions.map((s) => [s.id, s]));
 
-          for (const row of providerEnrollments ?? []) {
-            const enrollment = row as TrainingEnrollment;
-            providerEnrollmentCounts.set(
-              enrollment.session_id,
-              (providerEnrollmentCounts.get(enrollment.session_id) ?? 0) + 1,
-            );
+          const session = sessionById.get(enrollment.session_id);
+          if (!session) continue;
 
-            const session = sessionById.get(enrollment.session_id);
-            if (!session) continue;
-
-            providerRoster.push({
-              id: enrollment.id,
-              courseId: enrollment.course_id,
-              courseTitle: courseTitleById.get(enrollment.course_id) ?? "Course",
-              sessionId: enrollment.session_id,
-              sessionTitle: session.title,
-              sessionStartsAt: session.starts_at,
-              traineeName: enrollment.trainee_name ?? "",
-              traineeEmail: enrollment.trainee_email ?? "",
-              traineePhone: enrollment.trainee_phone ?? "",
-              traineeBusiness: enrollment.trainee_business ?? "",
-              enrolledAt: enrollment.enrolled_at,
-              status: enrollment.status,
-            });
-          }
+          providerRoster.push({
+            id: enrollment.id,
+            courseId: enrollment.course_id,
+            courseTitle: courseTitleById.get(enrollment.course_id) ?? "Course",
+            sessionId: enrollment.session_id,
+            sessionTitle: session.title,
+            sessionStartsAt: session.starts_at,
+            traineeName: enrollment.trainee_name ?? "",
+            traineeEmail: enrollment.trainee_email ?? "",
+            traineePhone: enrollment.trainee_phone ?? "",
+            traineeBusiness: enrollment.trainee_business ?? "",
+            enrolledAt: enrollment.enrolled_at,
+            status: enrollment.status,
+            attended: Boolean(enrollment.attended),
+            attendedAt: enrollment.attended_at ?? null,
+            completedAt: enrollment.completed_at ?? null,
+            lessonCount: lessonCountByCourse.get(enrollment.course_id) ?? 0,
+            lessonsCompleted:
+              completedByUserCourse.get(`${enrollment.user_id}:${enrollment.course_id}`) ?? 0,
+          });
         }
 
         providerCourses = (ownCourses ?? []).map((row) => {
@@ -472,7 +616,12 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
               ),
             );
 
-          return buildCourseView(course, provider.display_name || "You", courseSessions);
+          return buildCourseView(
+            course,
+            provider.display_name || "You",
+            courseSessions,
+            toLessonViews(ownLessons, course.id, new Set()),
+          );
         });
       } else {
         providerCourses = [];
@@ -481,6 +630,7 @@ export async function getTrainingPortalDataAction(): Promise<TrainingPortalDataR
 
     return {
       ok: true,
+      warning: lmsWarning,
       catalog,
       myEnrollments: myEnrollmentViews,
       provider: providerView,
@@ -763,7 +913,7 @@ export async function enrollInSessionAction(
       .from(TRAINING_ENROLLMENTS_TABLE)
       .select("id", { count: "exact", head: true })
       .eq("session_id", sessionId)
-      .eq("status", "enrolled");
+      .in("status", ACTIVE_TRAINING_ENROLLMENT_STATUSES);
 
     if (countError) {
       return { ok: false, error: formatTrainingDbError(countError.message) };
@@ -809,12 +959,18 @@ export async function enrollInSessionAction(
     status: "enrolled" as const,
   };
 
-  if (existingEnrollment?.status === "enrolled") {
+  if (existingEnrollment?.status === "enrolled" || existingEnrollment?.status === "completed") {
     const { error } = await supabase
       .from(TRAINING_ENROLLMENTS_TABLE)
       .update({
-        ...enrollmentPayload,
-        enrolled_at: new Date().toISOString(),
+        business_id: enrollmentPayload.business_id,
+        trainee_name: enrollmentPayload.trainee_name,
+        trainee_email: enrollmentPayload.trainee_email,
+        trainee_phone: enrollmentPayload.trainee_phone,
+        trainee_business: enrollmentPayload.trainee_business,
+        ...(existingEnrollment.status === "enrolled"
+          ? { enrolled_at: new Date().toISOString() }
+          : {}),
       })
       .eq("id", existingEnrollment.id)
       .eq("user_id", user.id);
@@ -989,7 +1145,7 @@ export async function emailSessionNextStepsAction(
     .from(TRAINING_ENROLLMENTS_TABLE)
     .select("trainee_name, trainee_email")
     .eq("session_id", sessionId)
-    .eq("status", "enrolled");
+    .in("status", ACTIVE_TRAINING_ENROLLMENT_STATUSES);
 
   if (enrollError) {
     return { ok: false, error: formatTrainingDbError(enrollError.message) };

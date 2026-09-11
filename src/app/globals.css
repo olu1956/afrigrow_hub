@@ -101,3 +101,9 @@ html:has(.afrigrow-dashboard) body {
 .animate-partner-marquee {
   animation: partner-marquee 45s linear infinite;
 }
+
+@media print {
+  .afrigrow-print-hide {
+    display: none !important;
+  }
+}

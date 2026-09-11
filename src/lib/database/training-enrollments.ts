@@ -12,6 +12,11 @@ export type TrainingEnrollment = {
   trainee_business: string;
   status: TrainingEnrollmentStatus;
   enrolled_at: string;
+  attended: boolean;
+  attended_at: string | null;
+  completed_at: string | null;
+  self_completed: boolean;
+  self_completed_at: string | null;
 };
 
 export type TrainingEnrollmentInsert = Pick<

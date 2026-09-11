@@ -2,6 +2,39 @@ import type { TrainingCourseStatus } from "@/lib/database/training-courses";
 import type { TrainingEnrollmentStatus } from "@/lib/database/training-enrollments";
 import type { TrainingSessionStatus } from "@/lib/database/training-sessions";
 
+export const ACTIVE_TRAINING_ENROLLMENT_STATUSES: TrainingEnrollmentStatus[] = [
+  "enrolled",
+  "completed",
+];
+
+export function isActiveEnrollmentStatus(
+  status: TrainingEnrollmentStatus | null | undefined,
+): boolean {
+  return status === "enrolled" || status === "completed";
+}
+
+export function formatProgrammeProgress(
+  lessonsCompleted: number,
+  lessonCount: number,
+  attended: boolean,
+): string {
+  const lessons =
+    lessonCount === 0
+      ? "No modules yet"
+      : `${lessonsCompleted}/${lessonCount} ${lessonCount === 1 ? "module" : "modules"}`;
+  return `${lessons} · ${attended ? "attendance recorded" : "attendance pending"}`;
+}
+
+export type TrainingLessonView = {
+  id: string;
+  courseId: string;
+  title: string;
+  notes: string;
+  videoUrl: string;
+  sortOrder: number;
+  completed: boolean;
+};
+
 export type TrainingSessionView = {
   id: string;
   courseId: string;
@@ -14,6 +47,7 @@ export type TrainingSessionView = {
   enrollmentCount: number;
   isEnrolled: boolean;
   enrollmentId: string | null;
+  enrollmentStatus: TrainingEnrollmentStatus | null;
   hasPreviousAttempt: boolean;
 };
 
@@ -26,6 +60,7 @@ export type TrainingCourseView = {
   status: TrainingCourseStatus;
   providerName: string;
   sessions: TrainingSessionView[];
+  lessons: TrainingLessonView[];
 };
 
 export type TrainingEnrollmentView = {
@@ -42,6 +77,22 @@ export type TrainingEnrollmentView = {
   traineeEmail: string;
   traineePhone: string;
   traineeBusiness: string;
+  attended: boolean;
+  attendedAt: string | null;
+  completedAt: string | null;
+  selfCompleted: boolean;
+  lessonCount: number;
+  lessonsCompleted: number;
+  lessons: TrainingLessonView[];
+};
+
+export type TrainingCertificateView = {
+  enrollmentId: string;
+  traineeName: string;
+  courseTitle: string;
+  sessionTitle: string;
+  completedAt: string;
+  providerName: string;
 };
 
 export type TrainingEnrollmentPrefill = {
@@ -64,6 +115,11 @@ export type ProviderEnrollmentRosterEntry = {
   traineeBusiness: string;
   enrolledAt: string;
   status: TrainingEnrollmentStatus;
+  attended: boolean;
+  attendedAt: string | null;
+  completedAt: string | null;
+  lessonCount: number;
+  lessonsCompleted: number;
 };
 
 export type TrainingProviderView = {
@@ -73,6 +129,27 @@ export type TrainingProviderView = {
 };
 
 export type TrainingPortalTab = "catalog" | "my-learning" | "provider";
+
+const demoWhatsappLessons: TrainingLessonView[] = [
+  {
+    id: "demo-lesson-1",
+    courseId: "demo-course-2",
+    title: "Set up your business WhatsApp",
+    notes: "Prepare your profile, labels, and a simple welcome message before the live session.",
+    videoUrl: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    sortOrder: 0,
+    completed: true,
+  },
+  {
+    id: "demo-lesson-2",
+    courseId: "demo-course-2",
+    title: "Follow-up cadence that converts",
+    notes: "A three-touch sequence you can reuse after the workshop.",
+    videoUrl: "",
+    sortOrder: 1,
+    completed: false,
+  },
+];
 
 export const demoTrainingCourses: TrainingCourseView[] = [
   {
@@ -84,6 +161,17 @@ export const demoTrainingCourses: TrainingCourseView[] = [
     flyerImageUrl: "",
     status: "published",
     providerName: "AfriGrow Academy",
+    lessons: [
+      {
+        id: "demo-lesson-funding-1",
+        courseId: "demo-course-1",
+        title: "Records lenders actually ask for",
+        notes: "A short checklist to gather before the live workshop.",
+        videoUrl: "",
+        sortOrder: 0,
+        completed: false,
+      },
+    ],
     sessions: [
       {
         id: "demo-session-1",
@@ -97,6 +185,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
         enrollmentCount: 12,
         isEnrolled: false,
         enrollmentId: null,
+        enrollmentStatus: null,
         hasPreviousAttempt: false,
       },
     ],
@@ -110,6 +199,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
     flyerImageUrl: "",
     status: "published",
     providerName: "Growth Collective",
+    lessons: demoWhatsappLessons,
     sessions: [
       {
         id: "demo-session-2",
@@ -123,6 +213,7 @@ export const demoTrainingCourses: TrainingCourseView[] = [
         enrollmentCount: 8,
         isEnrolled: true,
         enrollmentId: "demo-enrollment-1",
+        enrollmentStatus: "enrolled",
         hasPreviousAttempt: false,
       },
     ],
@@ -144,8 +235,24 @@ export const demoMyEnrollments: TrainingEnrollmentView[] = [
     traineeEmail: "demo@example.com",
     traineePhone: "",
     traineeBusiness: "Demo Business",
+    attended: true,
+    attendedAt: new Date().toISOString(),
+    completedAt: null,
+    selfCompleted: false,
+    lessonCount: demoWhatsappLessons.length,
+    lessonsCompleted: demoWhatsappLessons.filter((lesson) => lesson.completed).length,
+    lessons: demoWhatsappLessons,
   },
 ];
+
+export const demoTrainingCertificate: TrainingCertificateView = {
+  enrollmentId: "demo-enrollment-1",
+  traineeName: "Demo User",
+  courseTitle: "WhatsApp Marketing That Converts",
+  sessionTitle: "Evening session",
+  completedAt: new Date().toISOString(),
+  providerName: "Growth Collective",
+};
 
 export function formatTrainingDate(iso: string): string {
   try {

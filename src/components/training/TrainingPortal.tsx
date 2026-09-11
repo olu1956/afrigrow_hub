@@ -15,6 +15,8 @@ import {
 import { DashboardPageLayout } from "@/components/dashboard/DashboardPageLayout";
 import { DashboardStatGrid } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
+import { EnrollmentProgramme } from "@/components/training/EnrollmentProgramme";
+import { ProviderLessonEditor } from "@/components/training/ProviderLessonEditor";
 import {
   cancelEnrollmentAction,
   cancelEnrollmentBySessionAction,
@@ -26,6 +28,11 @@ import {
   registerAsProviderAction,
   updateCourseAction,
 } from "@/lib/auth/training-actions";
+import {
+  setTrainingAttendanceAction,
+  toggleLessonCompleteAction,
+  markEnrollmentCompleteAction,
+} from "@/lib/auth/training-lms-actions";
 import { uploadTrainingFlyerToStorage } from "@/lib/training/flyer-upload";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -183,16 +190,20 @@ function SessionCard({
   onEnroll,
   onWithdraw,
   onReset,
+  onMarkComplete,
   showZoom,
   enrolling,
+  completing,
 }: {
   session: TrainingSessionView;
   courseTitle: string;
   onEnroll?: (sessionId: string, courseTitle: string, sessionTitle: string) => void;
   onWithdraw?: (sessionId: string) => void;
   onReset?: (sessionId: string) => void;
+  onMarkComplete?: (enrollmentId: string) => void;
   showZoom?: boolean;
   enrolling?: boolean;
+  completing?: boolean;
 }) {
   const full = session.maxSeats !== null && session.enrollmentCount >= session.maxSeats;
 
@@ -238,7 +249,27 @@ function SessionCard({
             </button>
           ) : null}
 
-          {onWithdraw && session.isEnrolled ? (
+          {onMarkComplete && session.enrollmentId && session.enrollmentStatus === "enrolled" ? (
+            <button
+              type="button"
+              disabled={completing}
+              onClick={() => onMarkComplete(session.enrollmentId!)}
+              className="rounded-md bg-primary px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+            >
+              {completing ? "Saving…" : "Mark complete"}
+            </button>
+          ) : null}
+
+          {session.enrollmentStatus === "completed" && session.enrollmentId ? (
+            <Link
+              href={`/dashboard/training/certificate/${session.enrollmentId}`}
+              className="rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white"
+            >
+              Certificate
+            </Link>
+          ) : null}
+
+          {onWithdraw && session.isEnrolled && session.enrollmentStatus !== "completed" ? (
             <button
               type="button"
               disabled={enrolling}
@@ -249,7 +280,7 @@ function SessionCard({
             </button>
           ) : null}
 
-          {onEnroll && session.isEnrolled && isSessionUpcoming(session.startsAt) ? (
+          {onEnroll && session.enrollmentStatus === "enrolled" && isSessionUpcoming(session.startsAt) ? (
             <button
               type="button"
               disabled={enrolling}
@@ -260,7 +291,11 @@ function SessionCard({
             </button>
           ) : null}
 
-          {session.isEnrolled ? (
+          {session.enrollmentStatus === "completed" ? (
+            <span className="inline-flex items-center rounded-full bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent">
+              Completed
+            </span>
+          ) : session.isEnrolled ? (
             <span className="inline-flex items-center rounded-full bg-primary-light px-2.5 py-1 text-xs font-semibold text-primary">
               Enrolled
             </span>
@@ -286,14 +321,18 @@ function CourseCatalogCard({
   course,
   onEnroll,
   enrollingSessionId,
+  completingEnrollmentId,
   onWithdraw,
   onReset,
+  onMarkComplete,
 }: {
   course: TrainingCourseView;
   onEnroll: (sessionId: string, courseTitle: string, sessionTitle: string) => void;
   enrollingSessionId: string | null;
+  completingEnrollmentId: string | null;
   onWithdraw: (sessionId: string) => void;
   onReset: (sessionId: string) => void;
+  onMarkComplete: (enrollmentId: string) => void;
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -315,6 +354,16 @@ function CourseCatalogCard({
       </div>
       <div className="space-y-4 p-5">
         <p className="text-sm leading-relaxed text-muted">{course.summary}</p>
+        {course.lessons?.length ? (
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            Programme · {course.lessons.length}{" "}
+            {course.lessons.length === 1 ? "module" : "modules"} plus live session
+          </p>
+        ) : (
+          <p className="text-xs text-muted">
+            Enroll first, then click Mark complete — including live Zoom-only courses.
+          </p>
+        )}
         {course.sessions.length === 0 ? (
           <p className="text-sm text-muted">No upcoming sessions scheduled.</p>
         ) : (
@@ -327,7 +376,9 @@ function CourseCatalogCard({
                 onEnroll={onEnroll}
                 onWithdraw={onWithdraw}
                 onReset={onReset}
+                onMarkComplete={onMarkComplete}
                 enrolling={enrollingSessionId === session.id}
+                completing={completingEnrollmentId === session.enrollmentId}
               />
             ))}
           </div>
@@ -368,6 +419,8 @@ export function TrainingPortal() {
   const [enrollingSessionId, setEnrollingSessionId] = useState<string | null>(null);
   const [emailingSessionId, setEmailingSessionId] = useState<string | null>(null);
   const [uploadingFlyerCourseId, setUploadingFlyerCourseId] = useState<string | null>(null);
+  const [togglingLessonId, setTogglingLessonId] = useState<string | null>(null);
+  const [completingEnrollmentId, setCompletingEnrollmentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupWarning, setSetupWarning] = useState<string | null>(null);
   const [usingDemo, setUsingDemo] = useState(false);
@@ -454,6 +507,13 @@ export function TrainingPortal() {
     initialized.current = true;
     void loadData();
   }, [hydrated, loadData]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("tab");
+    if (next === "catalog" || next === "my-learning" || next === "provider") {
+      setTab(next);
+    }
+  }, []);
 
   function handleTabChange(next: TrainingPortalTab) {
     setTab(next);
@@ -567,6 +627,111 @@ export function TrainingPortal() {
     }
 
     setSuccessMessage("Enrollment removed.");
+    await loadData();
+  }
+
+  async function handleToggleLesson(lessonId: string, completed: boolean) {
+    setTogglingLessonId(lessonId);
+    setError(null);
+    setSuccessMessage(null);
+
+    if (usingDemo || !authEnabled) {
+      setMyEnrollments((prev) =>
+        prev.map((enrollment) => {
+          if (!enrollment.lessons.some((lesson) => lesson.id === lessonId)) {
+            return enrollment;
+          }
+          const lessons = enrollment.lessons.map((lesson) =>
+            lesson.id === lessonId ? { ...lesson, completed } : lesson,
+          );
+          const lessonsCompleted = lessons.filter((lesson) => lesson.completed).length;
+          const allDone = lessons.length === 0 || lessonsCompleted >= lessons.length;
+          const nextStatus = enrollment.attended && allDone ? "completed" : "enrolled";
+          return {
+            ...enrollment,
+            lessons,
+            lessonsCompleted,
+            status: nextStatus,
+            completedAt: nextStatus === "completed" ? new Date().toISOString() : null,
+          };
+        }),
+      );
+      setTogglingLessonId(null);
+      return;
+    }
+
+    const result = await toggleLessonCompleteAction(lessonId, completed);
+    setTogglingLessonId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not update module progress.");
+      return;
+    }
+    await loadData();
+  }
+
+  async function handleMarkCourseComplete(enrollmentId: string) {
+    setCompletingEnrollmentId(enrollmentId);
+    setError(null);
+    setSuccessMessage(null);
+
+    if (usingDemo || !authEnabled) {
+      setMyEnrollments((prev) =>
+        prev.map((enrollment) => {
+          if (enrollment.id !== enrollmentId) return enrollment;
+          const lessons = enrollment.lessons.map((lesson) => ({ ...lesson, completed: true }));
+          return {
+            ...enrollment,
+            lessons,
+            lessonsCompleted: lessons.length,
+            selfCompleted: true,
+            status: "completed",
+            completedAt: new Date().toISOString(),
+          };
+        }),
+      );
+      setCatalog((prev) =>
+        prev.map((course) => ({
+          ...course,
+          sessions: course.sessions.map((session) =>
+            session.enrollmentId === enrollmentId
+              ? { ...session, enrollmentStatus: "completed", isEnrolled: true }
+              : session,
+          ),
+        })),
+      );
+      setCompletingEnrollmentId(null);
+      setSuccessMessage("Course marked complete. Open your certificate from My courses.");
+      setTab("my-learning");
+      return;
+    }
+
+    const result = await markEnrollmentCompleteAction(enrollmentId);
+    setCompletingEnrollmentId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not mark this course complete.");
+      return;
+    }
+    setSuccessMessage("Course marked complete. You can print your certificate.");
+    await loadData();
+    setTab("my-learning");
+  }
+
+  async function handleAttendance(enrollmentId: string, attended: boolean) {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const result = await setTrainingAttendanceAction(enrollmentId, attended);
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error ?? "Could not save attendance.");
+      return;
+    }
+    setSuccessMessage(
+      attended
+        ? "Attendance recorded. Enrolment completes when all modules are done too."
+        : "Attendance cleared.",
+    );
     await loadData();
   }
 
@@ -828,7 +993,7 @@ export function TrainingPortal() {
   return (
     <DashboardPageLayout
       title="Training"
-      description="Browse live courses and enroll as a learner — or switch to Provider to publish your own sessions."
+      description="Turn a live Zoom date into a short programme: modules, attendance, and a simple certificate when both are done."
       heroFooter={
         <DashboardStatGrid
           stats={[
@@ -839,7 +1004,7 @@ export function TrainingPortal() {
             },
             {
               label: "My upcoming sessions",
-              value: String(myEnrollments.length),
+              value: String(upcomingCount),
               icon: Calendar,
             },
             {
@@ -945,9 +1110,10 @@ export function TrainingPortal() {
           <div className="rounded-2xl border border-primary/15 bg-primary-light/30 p-5">
             <h2 className="text-lg font-bold text-foreground">Find a course and enroll</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              Pick a published session below and click <span className="font-semibold">Enroll</span>.
-              You will confirm your name and contact details so the provider knows who is attending.
-              After enrolling, your sessions appear under <span className="font-semibold">My courses</span>.
+              Pick a session and click <span className="font-semibold">Enroll</span>. Then click{" "}
+              <span className="font-semibold">Mark complete</span> on that same card, or open{" "}
+              <span className="font-semibold">My courses</span>. The certificate appears once the
+              course is marked complete.
             </p>
           </div>
 
@@ -965,13 +1131,15 @@ export function TrainingPortal() {
                 <CourseCatalogCard
                   key={course.id}
                   course={course}
-                onEnroll={(sessionId, courseTitle, sessionTitle) =>
-                  handleEnroll(sessionId, courseTitle, sessionTitle)
-                }
-                enrollingSessionId={enrollingSessionId}
-                onWithdraw={handleWithdrawSession}
-                onReset={handleResetSession}
-              />
+                  onEnroll={(sessionId, courseTitle, sessionTitle) =>
+                    handleEnroll(sessionId, courseTitle, sessionTitle)
+                  }
+                  enrollingSessionId={enrollingSessionId}
+                  completingEnrollmentId={completingEnrollmentId}
+                  onWithdraw={handleWithdrawSession}
+                  onReset={handleResetSession}
+                  onMarkComplete={handleMarkCourseComplete}
+                />
               ))
             )}
           </div>
@@ -998,11 +1166,20 @@ export function TrainingPortal() {
           ) : (
             myEnrollments.map((enrollment) => (
               <div key={enrollment.id} className="rounded-xl border border-border bg-card p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  {enrollment.courseTitle}
-                </p>
-                <h3 className="mt-1 font-semibold text-foreground">{enrollment.sessionTitle}</h3>
-                <p className="mt-1 text-sm text-muted">{formatTrainingDate(enrollment.startsAt)}</p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                      {enrollment.courseTitle}
+                    </p>
+                    <h3 className="mt-1 font-semibold text-foreground">{enrollment.sessionTitle}</h3>
+                    <p className="mt-1 text-sm text-muted">{formatTrainingDate(enrollment.startsAt)}</p>
+                  </div>
+                  {enrollment.status === "completed" ? (
+                    <span className="inline-flex items-center rounded-full bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent">
+                      Programme complete
+                    </span>
+                  ) : null}
+                </div>
                 {enrollment.traineeName || enrollment.traineeEmail ? (
                   <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
                     <p className="font-medium text-foreground">
@@ -1022,9 +1199,26 @@ export function TrainingPortal() {
                   </p>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2">
+                  {enrollment.status === "completed" ? (
+                    <Link
+                      href={`/dashboard/training/certificate/${enrollment.id}`}
+                      className="inline-flex items-center rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white"
+                    >
+                      Certificate
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={completingEnrollmentId === enrollment.id}
+                      onClick={() => void handleMarkCourseComplete(enrollment.id)}
+                      className="rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                    >
+                      {completingEnrollmentId === enrollment.id ? "Saving…" : "Mark complete"}
+                    </button>
+                  )}
                   <Link
                     href="/dashboard/next-steps"
-                    className="inline-flex items-center rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white"
+                    className="inline-flex items-center rounded-md border border-border px-3 py-2 text-xs font-bold uppercase tracking-wide text-foreground"
                   >
                     After training checklist
                   </Link>
@@ -1050,6 +1244,13 @@ export function TrainingPortal() {
                     </button>
                   ) : null}
                 </div>
+                <EnrollmentProgramme
+                  enrollment={enrollment}
+                  togglingLessonId={togglingLessonId}
+                  completing={completingEnrollmentId === enrollment.id}
+                  onToggleLesson={handleToggleLesson}
+                  onMarkComplete={handleMarkCourseComplete}
+                />
               </div>
             ))
           )}
@@ -1093,7 +1294,8 @@ export function TrainingPortal() {
                 <p className="text-sm font-semibold text-primary">Provider account active</p>
                 <p className="mt-1 text-lg font-bold text-foreground">{providerName}</p>
                 <p className="mt-2 text-sm text-muted">
-                  Create a course, add sessions with Zoom links, then publish to the catalog.
+                  Create a course, add live Zoom sessions, add short modules, then publish to the
+                  catalog. Tick who joined the live session so enrolment can complete.
                 </p>
               </div>
 
@@ -1348,6 +1550,16 @@ export function TrainingPortal() {
                         </label>
                       </div>
 
+                      <ProviderLessonEditor
+                        courseId={course.id}
+                        lessons={course.lessons ?? []}
+                        saving={saving}
+                        onBusy={setSaving}
+                        onError={setError}
+                        onSuccess={setSuccessMessage}
+                        onChanged={loadData}
+                      />
+
                       {course.sessions.length > 0 ? (
                         <div className="mt-4 space-y-2">
                           {course.sessions.map((session) => (
@@ -1425,8 +1637,9 @@ export function TrainingPortal() {
               <div className="space-y-4">
                 <h2 className="text-lg font-bold text-foreground">Enrolled trainees</h2>
                 <p className="text-sm text-muted">
-                  Names and contact details submitted when members enroll in your sessions. After
-                  the Zoom, email them the next-steps checklist in one click.
+                  Tick who joined the live session. Enrolment completes when attendance is recorded
+                  and the trainee has finished every module. After the Zoom, email them the
+                  next-steps checklist in one click.
                 </p>
                 {rosterSessions.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
@@ -1455,7 +1668,9 @@ export function TrainingPortal() {
                           <th className="px-4 py-3 font-semibold">Trainee</th>
                           <th className="px-4 py-3 font-semibold">Contact</th>
                           <th className="px-4 py-3 font-semibold">Session</th>
-                          <th className="px-4 py-3 font-semibold">Enrolled</th>
+                          <th className="px-4 py-3 font-semibold">Modules</th>
+                          <th className="px-4 py-3 font-semibold">Attended</th>
+                          <th className="px-4 py-3 font-semibold">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1478,7 +1693,29 @@ export function TrainingPortal() {
                               <p className="text-xs">{formatTrainingDate(entry.sessionStartsAt)}</p>
                             </td>
                             <td className="px-4 py-3 text-muted">
-                              {formatTrainingDate(entry.enrolledAt)}
+                              {entry.lessonCount === 0
+                                ? "None"
+                                : `${entry.lessonsCompleted}/${entry.lessonCount}`}
+                            </td>
+                            <td className="px-4 py-3">
+                              <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                                <input
+                                  type="checkbox"
+                                  checked={entry.attended}
+                                  disabled={saving}
+                                  onChange={(e) =>
+                                    void handleAttendance(entry.id, e.target.checked)
+                                  }
+                                />
+                                Joined
+                              </label>
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {entry.status === "completed" ? (
+                                <span className="font-semibold text-primary">Completed</span>
+                              ) : (
+                                "Enrolled"
+                              )}
                             </td>
                           </tr>
                         ))}
