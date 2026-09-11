@@ -123,11 +123,11 @@ export function SignUpForm() {
   if (needsConfirmation) {
     return (
       <div className="rounded-2xl border border-primary/20 bg-primary-light p-6 text-center">
-        <p className="font-semibold text-primary">Confirm your email</p>
+        <p className="font-semibold text-primary">Check your inbox</p>
         <p className="mt-2 text-sm text-muted">
-          We sent a confirmation link to{" "}
-          <span className="font-medium text-foreground">{email}</span>. Click it to
-          activate your account, then log in.
+          We have emailed <span className="font-medium text-foreground">{email}</span> to
+          confirm your registration and welcome you to AfriGrow Hub. If a confirmation
+          link is included, click it, then log in.
         </p>
         <Link
           href="/login"

@@ -7,6 +7,7 @@ import { getPlanById, type PlanId } from "@/lib/billing-data";
 import { BUSINESSES_TABLE } from "@/lib/database/businesses";
 import { SUBSCRIPTIONS_TABLE, type Subscription } from "@/lib/database/subscriptions";
 import { USERS_PROFILE_TABLE } from "@/lib/database/users-profile";
+import { ensureMemberWelcomeEmail } from "@/lib/mail/member-welcome";
 import { createClient } from "@/lib/supabase/server";
 import type { SessionPreview } from "@/lib/session-preview";
 
@@ -47,6 +48,23 @@ export async function getSessionDataAction(): Promise<AuthSessionData | null> {
   }
 
   const isPlatformAdmin = await isPlatformAdminUser(supabase, user.id, user.email, user);
+
+  const created = Date.parse(user.created_at);
+  const welcomeSent = Boolean(
+    (user.user_metadata as { welcome_email_sent?: boolean } | undefined)?.welcome_email_sent,
+  );
+  if (!welcomeSent && Number.isFinite(created) && Date.now() - created <= 24 * 60 * 60 * 1000) {
+    void ensureMemberWelcomeEmail(user, {
+      fullName: session.owner,
+      businessName: session.name,
+      email: session.email || user.email || "",
+    }).catch((error: unknown) => {
+      console.error(
+        "Session welcome email failed:",
+        error instanceof Error ? error.message : error,
+      );
+    });
+  }
 
   return {
     userId: user.id,

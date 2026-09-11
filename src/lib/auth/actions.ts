@@ -5,7 +5,7 @@ import { isSupabaseAuthEnabled } from "@/lib/auth/config";
 import { USERS_PROFILE_TABLE } from "@/lib/database/users-profile";
 import { BUSINESSES_TABLE } from "@/lib/database/businesses";
 import { notifyAdminsOfSignup } from "@/lib/mail/admin-notifications";
-import { sendMemberWelcomeEmail } from "@/lib/mail/member-welcome";
+import { ensureMemberWelcomeEmail } from "@/lib/mail/member-welcome";
 import { getAuthCallbackUrl } from "@/lib/site-url";
 
 export type AuthResult = {
@@ -87,7 +87,7 @@ export async function signUpAction(input: {
           country: input.country,
           source: "email",
         }),
-        sendMemberWelcomeEmail({
+        ensureMemberWelcomeEmail(data.user, {
           fullName: input.fullName,
           businessName: input.businessName,
           email: input.email,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { notifyAdminsOfSignup } from "@/lib/mail/admin-notifications";
-import { sendMemberWelcomeEmail } from "@/lib/mail/member-welcome";
+import { ensureMemberWelcomeEmail } from "@/lib/mail/member-welcome";
 import { createClient } from "@/lib/supabase/server";
 
 function safeNextPath(next: string | null): string {
@@ -20,38 +20,42 @@ function isFreshGoogleSignup(user: User): boolean {
   const fromGoogle = (user.identities ?? []).some(
     (identity) => identity.provider === "google",
   );
-  const meta = (user.user_metadata ?? {}) as { business_name?: string };
-  return fromGoogle && !meta.business_name?.trim();
+  const meta = (user.user_metadata as { welcome_email_sent?: boolean } | undefined) ?? {};
+  return fromGoogle && meta.welcome_email_sent !== true;
 }
 
-async function notifyIfFreshGoogleSignup(user: User | null): Promise<void> {
-  if (!user || !isFreshGoogleSignup(user)) return;
+async function notifyIfNewMember(user: User | null): Promise<void> {
+  if (!user) return;
 
   const meta = (user.user_metadata ?? {}) as {
     full_name?: string;
     name?: string;
+    business_name?: string;
   };
-
-  const fullName = meta.full_name?.trim() || meta.name?.trim() || "Google user";
+  const fullName = meta.full_name?.trim() || meta.name?.trim() || "there";
+  const businessName = meta.business_name?.trim() || "your business";
   const email = user.email ?? "";
 
   try {
-    await Promise.all([
-      notifyAdminsOfSignup({
-        fullName,
-        businessName: "Untitled business",
-        email,
-        source: "google",
-      }),
-      sendMemberWelcomeEmail({
-        fullName,
-        businessName: "Untitled business",
-        email,
-      }),
-    ]);
+    const welcome = ensureMemberWelcomeEmail(user, {
+      fullName,
+      businessName,
+      email,
+    });
+
+    const adminAlert = isFreshGoogleSignup(user)
+      ? notifyAdminsOfSignup({
+          fullName,
+          businessName: businessName === "your business" ? "Untitled business" : businessName,
+          email,
+          source: "google",
+        })
+      : Promise.resolve();
+
+    await Promise.all([welcome, adminAlert]);
   } catch (notifyError) {
     console.error(
-      "Google signup notification emails failed:",
+      "New-member notification emails failed:",
       notifyError instanceof Error ? notifyError.message : notifyError,
     );
   }
@@ -69,7 +73,7 @@ export async function GET(request: Request) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      await notifyIfFreshGoogleSignup(user);
+      await notifyIfNewMember(user);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
