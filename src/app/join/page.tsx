@@ -72,12 +72,17 @@ export default function JoinPage() {
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <JoinNowButton size="lg" href="/signup" />
             <Link
-              href="/login"
+              href="/demo"
               className="text-sm font-semibold text-primary hover:underline"
             >
-              Already a member? Log in
+              See how it works first
             </Link>
           </div>
+          <p className="mt-4">
+            <Link href="/login" className="text-sm text-muted hover:text-foreground">
+              Already a member? Log in
+            </Link>
+          </p>
         </div>
       </section>
 

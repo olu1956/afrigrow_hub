@@ -175,10 +175,10 @@ export function Hero() {
               <JoinNowButton size="lg" href="/signup" className="!rounded-full shadow-lg shadow-accent/30" />
             )}
             <a
-              href={isAuthenticated ? "/dashboard/marketing" : "/#agents"}
+              href={isAuthenticated ? "/dashboard/marketing" : "/demo"}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-7 py-3.5 text-base font-semibold text-foreground transition hover:border-primary/30 hover:bg-primary-light/50"
             >
-              {isAuthenticated ? "Open marketing agent" : "Explore AI agents"}
+              {isAuthenticated ? "Open marketing agent" : "See how it works"}
             </a>
           </div>
         </div>
@@ -192,7 +192,12 @@ export function Hero() {
               {previewCard}
             </Link>
           ) : (
-            previewCard
+            <Link
+              href="/demo"
+              className="block transition hover:scale-[1.01] hover:shadow-2xl hover:shadow-primary/10"
+            >
+              {previewCard}
+            </Link>
           )}
         </div>
       </div>

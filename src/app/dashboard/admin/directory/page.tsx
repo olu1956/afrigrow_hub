@@ -3,7 +3,7 @@ import { DirectoryModerationAdmin } from "@/components/admin/DirectoryModeration
 
 export const metadata: Metadata = {
   title: "Directory Moderation — AfriGrow Hub Admin",
-  description: "Unlist or remove businesses from the AfriGrow Directory.",
+  description: "Verify businesses, unlist listings, or remove duplicate accounts.",
 };
 
 export default function DirectoryModerationAdminPage() {

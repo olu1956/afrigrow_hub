@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { Eye, Globe, Mail, MapPin, MessageCircle, Phone, ShieldCheck, Star, X } from "lucide-react";
+import { Eye, Globe, Mail, MapPin, MessageCircle, Phone, Star, X } from "lucide-react";
 import {
   categoryLabels,
   type DirectoryListing,
 } from "@/lib/directory-data";
+import { VerificationBadge } from "@/components/trust/VerificationBadge";
 
 type DirectoryProfileModalProps = {
   listing: DirectoryListing | null;
@@ -59,12 +60,7 @@ export function DirectoryProfileModal({ listing, onClose }: DirectoryProfileModa
                     Live
                   </span>
                 )}
-                {listing.verified && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary">
-                    <ShieldCheck className="h-3 w-3" />
-                    Verified
-                  </span>
-                )}
+                <VerificationBadge verified={listing.verified} />
               </div>
               <p className="mt-1 text-sm text-muted">{listing.tagline}</p>
             </div>

@@ -147,7 +147,7 @@ export const adminNav: NavItem[] = [
     label: "Directory",
     href: "/dashboard/admin/directory",
     icon: Building2,
-    description: "Unlist or remove businesses",
+    description: "Verify, unlist or remove businesses",
   },
   {
     label: "Business guides",

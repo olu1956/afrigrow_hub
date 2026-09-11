@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+
 const audiences = [
   "Small businesses",
   "Traders & retailers",
@@ -84,6 +87,13 @@ export function HowItWorks() {
                 </li>
               ))}
             </ol>
+            <Link
+              href="/demo"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+            >
+              Take a 2-minute product tour
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </div>

@@ -7,11 +7,13 @@ import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import {
   getAdminDirectoryBusinessesAction,
   removeDirectoryBusinessAction,
+  setBusinessVerifiedAction,
   setDirectoryHiddenAction,
   type AdminDirectoryBusiness,
 } from "@/lib/auth/admin-directory-actions";
+import { VerificationBadge } from "@/components/trust/VerificationBadge";
 
-type Filter = "all" | "listed" | "unlisted" | "incomplete";
+type Filter = "all" | "listed" | "unlisted" | "incomplete" | "verified" | "unverified";
 
 function locationLabel(business: AdminDirectoryBusiness): string {
   return [business.city, business.country].filter(Boolean).join(", ") || "—";
@@ -52,6 +54,8 @@ export function DirectoryModerationAdmin() {
     return businesses.filter((business) => {
       if (filter === "listed" && !business.listed) return false;
       if (filter === "unlisted" && !business.directoryHidden) return false;
+      if (filter === "verified" && !business.isVerified) return false;
+      if (filter === "unverified" && business.isVerified) return false;
       if (
         filter === "incomplete" &&
         (business.listed || business.directoryHidden || business.profileScore >= 40)
@@ -74,6 +78,7 @@ export function DirectoryModerationAdmin() {
       total: businesses.length,
       listed: businesses.filter((b) => b.listed).length,
       unlisted: businesses.filter((b) => b.directoryHidden).length,
+      verified: businesses.filter((b) => b.isVerified).length,
     }),
     [businesses],
   );
@@ -112,6 +117,36 @@ export function DirectoryModerationAdmin() {
     await load();
   }
 
+  async function handleVerify(business: AdminDirectoryBusiness, verified: boolean) {
+    if (
+      !verified &&
+      !window.confirm(
+        `Remove the Verified badge from “${business.businessName}”?\n\nThey will stay in the Directory as Unverified.`,
+      )
+    ) {
+      return;
+    }
+
+    setBusyId(business.id);
+    setError(null);
+    setNotice(null);
+    const result = await setBusinessVerifiedAction({
+      businessId: business.id,
+      verified,
+    });
+    setBusyId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not update verification.");
+      return;
+    }
+    setNotice(
+      verified
+        ? `Verified “${business.businessName}”.`
+        : `Removed verification from “${business.businessName}”.`,
+    );
+    await load();
+  }
+
   async function handleRemove(business: AdminDirectoryBusiness) {
     const confirmed = window.confirm(
       `Remove “${business.businessName}” permanently?\n\nThis deletes their AfriGrow account and all related data. Use this for duplicates or accounts you do not want on the platform.`,
@@ -134,7 +169,7 @@ export function DirectoryModerationAdmin() {
   return (
     <DashboardPageLayout
       title="Directory moderation"
-      description="Unlist businesses from the public Directory, or remove duplicate / unwanted accounts."
+      description="Verify businesses, unlist them from the Directory, or remove duplicate / unwanted accounts."
       heroExtra={
         notice || warning || error ? (
           <>
@@ -157,7 +192,7 @@ export function DirectoryModerationAdmin() {
         ) : undefined
       }
       heroFooter={
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className={`${dashboardCardClass} px-4 py-3`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">All businesses</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{stats.total}</p>
@@ -165,6 +200,10 @@ export function DirectoryModerationAdmin() {
           <div className={`${dashboardCardClass} px-4 py-3`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Listed</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{stats.listed}</p>
+          </div>
+          <div className={`${dashboardCardClass} px-4 py-3`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Verified</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{stats.verified}</p>
           </div>
           <div className={`${dashboardCardClass} px-4 py-3`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Admin-unlisted</p>
@@ -180,6 +219,8 @@ export function DirectoryModerationAdmin() {
               ["all", "All"],
               ["listed", "Listed"],
               ["unlisted", "Unlisted"],
+              ["verified", "Verified"],
+              ["unverified", "Unverified"],
               ["incomplete", "Incomplete"],
             ] as const
           ).map(([value, label]) => (
@@ -241,11 +282,7 @@ export function DirectoryModerationAdmin() {
                           Incomplete
                         </span>
                       )}
-                      {business.isVerified ? (
-                        <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary">
-                          Verified
-                        </span>
-                      ) : null}
+                      <VerificationBadge verified={business.isVerified} />
                     </div>
                     <h2 className="mt-3 text-lg font-bold text-foreground">
                       {business.businessName}
@@ -262,6 +299,25 @@ export function DirectoryModerationAdmin() {
                   </div>
 
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                    {business.isVerified ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void handleVerify(business, false)}
+                        className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-background disabled:opacity-60"
+                      >
+                        {busy ? "Working…" : "Remove verification"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void handleVerify(business, true)}
+                        className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
+                      >
+                        {busy ? "Working…" : "Verify"}
+                      </button>
+                    )}
                     {business.directoryHidden ? (
                       <button
                         type="button"

@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { Eye, MapPin, ShieldCheck, Star } from "lucide-react";
+import { Eye, MapPin, Star } from "lucide-react";
 import {
   categoryLabels,
   type DirectoryListing,
 } from "@/lib/directory-data";
+import { VerificationBadge } from "@/components/trust/VerificationBadge";
 
 type DirectoryListingCardProps = {
   listing: DirectoryListing;
@@ -49,12 +50,7 @@ export function DirectoryListingCard({ listing, onView }: DirectoryListingCardPr
                     Sample
                   </span>
                 )}
-                {listing.verified && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary">
-                    <ShieldCheck className="h-3 w-3" />
-                    Verified
-                  </span>
-                )}
+                <VerificationBadge verified={listing.verified} />
                 {listing.featured && (
                   <span className="rounded-full bg-accent-light px-2 py-0.5 text-[10px] font-semibold text-accent">
                     Featured

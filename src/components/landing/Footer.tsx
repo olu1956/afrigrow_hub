@@ -31,6 +31,11 @@ export function Footer() {
                     </Link>
                   </li>
                 ))}
+                <li>
+                  <Link href="/demo" className="transition hover:text-white">
+                    See how it works
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>

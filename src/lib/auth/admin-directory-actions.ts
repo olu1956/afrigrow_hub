@@ -267,6 +267,108 @@ export async function setDirectoryHiddenAction(input: {
   return { ok: true };
 }
 
+export async function setBusinessVerifiedAction(input: {
+  businessId: string;
+  verified: boolean;
+}): Promise<AdminDirectoryActionResult> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: false, error: "Supabase is not configured." };
+  }
+
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
+  }
+
+  const businessId = input.businessId.trim();
+  if (!businessId) {
+    return { ok: false, error: "Missing business id." };
+  }
+
+  const { error: rpcError } = await auth.supabase.rpc("admin_set_business_verified", {
+    p_business_id: businessId,
+    p_verified: input.verified,
+  });
+
+  if (!rpcError) {
+    const { data: verified } = await auth.supabase
+      .from(BUSINESSES_TABLE)
+      .select("id, is_verified")
+      .eq("id", businessId)
+      .maybeSingle();
+
+    if (verified && Boolean(verified.is_verified) !== input.verified) {
+      return {
+        ok: false,
+        error: "Verification did not apply. Re-run setup_directory_moderation.sql and try again.",
+      };
+    }
+
+    revalidatePath("/dashboard/directory");
+    revalidatePath("/dashboard/admin/directory");
+    revalidatePath("/dashboard/matching");
+    return { ok: true };
+  }
+
+  const canFallback =
+    isMissingRpc(rpcError.message) || /not authorized/i.test(rpcError.message);
+  if (!canFallback) {
+    return { ok: false, error: formatModerationError(rpcError.message) };
+  }
+
+  const adminClient = createAdminClient();
+  if (adminClient) {
+    const { data, error } = await adminClient
+      .from(BUSINESSES_TABLE)
+      .update({ is_verified: input.verified })
+      .eq("id", businessId)
+      .select("id, is_verified")
+      .maybeSingle();
+
+    if (error) {
+      return { ok: false, error: formatModerationError(error.message) };
+    }
+    if (!data) {
+      return { ok: false, error: "Business not found." };
+    }
+    if (Boolean(data.is_verified) !== input.verified) {
+      return { ok: false, error: "Verification did not apply in the database." };
+    }
+
+    revalidatePath("/dashboard/directory");
+    revalidatePath("/dashboard/admin/directory");
+    revalidatePath("/dashboard/matching");
+    return { ok: true };
+  }
+
+  const { data, error } = await auth.supabase
+    .from(BUSINESSES_TABLE)
+    .update({ is_verified: input.verified })
+    .eq("id", businessId)
+    .select("id, is_verified")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: formatModerationError(error.message || rpcError.message) };
+  }
+
+  if (!data) {
+    return {
+      ok: false,
+      error: formatModerationError(rpcError.message || "not authorized"),
+    };
+  }
+
+  if (Boolean(data.is_verified) !== input.verified) {
+    return { ok: false, error: "Verification did not apply in the database." };
+  }
+
+  revalidatePath("/dashboard/directory");
+  revalidatePath("/dashboard/admin/directory");
+  revalidatePath("/dashboard/matching");
+  return { ok: true };
+}
+
 export async function removeDirectoryBusinessAction(input: {
   businessId: string;
 }): Promise<AdminDirectoryActionResult> {
