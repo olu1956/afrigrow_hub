@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/BrandLogo";
+import { CookiePreferencesButton } from "@/components/cookies/CookiePreferencesButton";
 import { homeSectionLinks } from "@/lib/home-nav";
 import { initiativeLinks } from "@/lib/initiatives-nav";
 import { EARLY_ACCESS_FOOTER } from "@/lib/product-messaging";
@@ -82,6 +83,16 @@ export function Footer() {
                   <Link href="/privacy" className="transition hover:text-white">
                     Privacy
                   </Link>
+                </li>
+                <li>
+                  <Link href="/terms" className="transition hover:text-white">
+                    Terms
+                  </Link>
+                </li>
+                <li>
+                  <CookiePreferencesButton className="transition hover:text-white">
+                    Cookie preferences
+                  </CookiePreferencesButton>
                 </li>
               </ul>
             </div>

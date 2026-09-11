@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/about",
     "/contact",
     "/privacy",
+    "/terms",
     "/after-training",
     "/partners",
     "/partners/programme",

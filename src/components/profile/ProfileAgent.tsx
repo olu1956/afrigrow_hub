@@ -17,6 +17,7 @@ import { dashboardCardClass } from "@/components/dashboard/DashboardPageCanvas";
 import { useSession } from "@/components/providers/SessionProvider";
 import { ProfilePreview } from "@/components/profile/ProfilePreview";
 import { ProfileStrengthMeter } from "@/components/profile/ProfileStrengthMeter";
+import { ProfileVerificationRequest } from "@/components/profile/ProfileVerificationRequest";
 import {
   getBusinessProfileAction,
   saveBusinessProfileAction,
@@ -348,6 +349,8 @@ export function ProfileAgent() {
         <div
           className={`space-y-6 lg:col-span-3 ${activeTab === "preview" ? "hidden lg:block" : ""}`}
         >
+          <ProfileVerificationRequest profile={profile} />
+
           <section className={dashboardCardClass}>
             <div className="mb-5 flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" />

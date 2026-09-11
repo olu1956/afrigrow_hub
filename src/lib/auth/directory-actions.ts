@@ -3,6 +3,7 @@
 import { isSupabaseAuthEnabled } from "@/lib/auth/config";
 import { BUSINESSES_TABLE, type Business } from "@/lib/database/businesses";
 import { DIRECTORY_MIN_PROFILE_SCORE } from "@/lib/directory/constants";
+import { isBusinessListed } from "@/lib/directory/listing-status";
 import { mapBusinessesToDirectoryListings } from "@/lib/directory/map-business-to-listing";
 import type { DirectoryListing } from "@/lib/directory-data";
 import { createClient } from "@/lib/supabase/server";
@@ -37,13 +38,13 @@ export async function getMyDirectoryStatusAction(): Promise<MyDirectoryStatusRes
 
   const { data, error } = await supabase
     .from(BUSINESSES_TABLE)
-    .select("profile_score, business_name, directory_hidden")
+    .select("profile_score, business_name, directory_hidden, directory_opt_out")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (error) {
-    // Older DBs without directory_hidden — fall back to score-only listing.
-    if (/directory_hidden/i.test(error.message)) {
+    // Older DBs without moderation columns — fall back to score-only listing.
+    if (/directory_hidden|directory_opt_out/i.test(error.message)) {
       const fallback = await supabase
         .from(BUSINESSES_TABLE)
         .select("profile_score, business_name")
@@ -63,9 +64,10 @@ export async function getMyDirectoryStatusAction(): Promise<MyDirectoryStatusRes
       const profileScore =
         typeof fallback.data?.profile_score === "number" ? fallback.data.profile_score : null;
       const businessName = fallback.data?.business_name?.trim() || null;
-      const listed = Boolean(
-        businessName && profileScore !== null && profileScore >= DIRECTORY_MIN_PROFILE_SCORE,
-      );
+      const listed = isBusinessListed({
+        businessName: fallback.data?.business_name,
+        profileScore: fallback.data?.profile_score,
+      });
       return { ok: true, profileScore, listed, businessName };
     }
 
@@ -83,12 +85,15 @@ export async function getMyDirectoryStatusAction(): Promise<MyDirectoryStatusRes
   const directoryHidden = Boolean(
     (data as { directory_hidden?: boolean | null } | null)?.directory_hidden,
   );
-  const listed = Boolean(
-    businessName &&
-      profileScore !== null &&
-      profileScore >= DIRECTORY_MIN_PROFILE_SCORE &&
-      !directoryHidden,
+  const directoryOptOut = Boolean(
+    (data as { directory_opt_out?: boolean | null } | null)?.directory_opt_out,
   );
+  const listed = isBusinessListed({
+    businessName,
+    profileScore,
+    directoryHidden,
+    directoryOptOut,
+  });
 
   return { ok: true, profileScore, listed, businessName };
 }
@@ -104,10 +109,11 @@ export async function getDirectoryListingsAction(): Promise<DirectoryListingsRes
     .select("*")
     .gte("profile_score", DIRECTORY_MIN_PROFILE_SCORE)
     .eq("directory_hidden", false)
+    .eq("directory_opt_out", false)
     .order("profile_score", { ascending: false })
     .order("updated_at", { ascending: false });
 
-  if (error && /directory_hidden/i.test(error.message)) {
+  if (error && /directory_hidden|directory_opt_out/i.test(error.message)) {
     const fallback = await supabase
       .from(BUSINESSES_TABLE)
       .select("*")

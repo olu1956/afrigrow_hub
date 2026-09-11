@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import { CookieBanner } from "@/components/cookies/CookieBanner";
 import { EARLY_ACCESS_FOOTER } from "@/lib/product-messaging";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
@@ -58,7 +59,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${dmSans.variable}`} suppressHydrationWarning>
       <body className="min-h-dvh antialiased" suppressHydrationWarning>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          {children}
+          <CookieBanner />
+        </SessionProvider>
       </body>
     </html>
   );

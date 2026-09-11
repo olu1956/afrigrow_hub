@@ -11,9 +11,20 @@ import {
   setDirectoryHiddenAction,
   type AdminDirectoryBusiness,
 } from "@/lib/auth/admin-directory-actions";
+import {
+  getVerificationDocumentUrlAction,
+  reviewVerificationRequestAction,
+} from "@/lib/auth/verification-actions";
 import { VerificationBadge } from "@/components/trust/VerificationBadge";
 
-type Filter = "all" | "listed" | "unlisted" | "incomplete" | "verified" | "unverified";
+type Filter =
+  | "all"
+  | "listed"
+  | "unlisted"
+  | "incomplete"
+  | "verified"
+  | "unverified"
+  | "pending";
 
 function locationLabel(business: AdminDirectoryBusiness): string {
   return [business.city, business.country].filter(Boolean).join(", ") || "—";
@@ -56,6 +67,7 @@ export function DirectoryModerationAdmin() {
       if (filter === "unlisted" && !business.directoryHidden) return false;
       if (filter === "verified" && !business.isVerified) return false;
       if (filter === "unverified" && business.isVerified) return false;
+      if (filter === "pending" && business.verificationRequest?.status !== "pending") return false;
       if (
         filter === "incomplete" &&
         (business.listed || business.directoryHidden || business.profileScore >= 40)
@@ -79,6 +91,7 @@ export function DirectoryModerationAdmin() {
       listed: businesses.filter((b) => b.listed).length,
       unlisted: businesses.filter((b) => b.directoryHidden).length,
       verified: businesses.filter((b) => b.isVerified).length,
+      pending: businesses.filter((b) => b.verificationRequest?.status === "pending").length,
     }),
     [businesses],
   );
@@ -147,6 +160,54 @@ export function DirectoryModerationAdmin() {
     await load();
   }
 
+  async function handleReview(business: AdminDirectoryBusiness, approved: boolean) {
+    const request = business.verificationRequest;
+    if (!request) return;
+
+    let adminNote = "";
+    if (!approved) {
+      const reason = window.prompt(
+        `Reject verification for “${business.businessName}”?\n\nAdd a short reason the member will see.`,
+      );
+      if (reason === null) return;
+      adminNote = reason;
+    }
+
+    setBusyId(business.id);
+    setError(null);
+    setNotice(null);
+    const result = await reviewVerificationRequestAction({
+      requestId: request.id,
+      approved,
+      adminNote,
+    });
+    setBusyId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not review verification request.");
+      return;
+    }
+    setNotice(
+      approved
+        ? `Verified “${business.businessName}”.`
+        : `Rejected verification for “${business.businessName}”.`,
+    );
+    await load();
+  }
+
+  async function handleOpenDocument(business: AdminDirectoryBusiness) {
+    const path = business.verificationRequest?.documentPath;
+    if (!path) return;
+    setBusyId(business.id);
+    setError(null);
+    const result = await getVerificationDocumentUrlAction({ documentPath: path });
+    setBusyId(null);
+    if (!result.ok || !result.url) {
+      setError(result.error ?? "Could not open the document.");
+      return;
+    }
+    window.open(result.url, "_blank", "noopener,noreferrer");
+  }
+
   async function handleRemove(business: AdminDirectoryBusiness) {
     const confirmed = window.confirm(
       `Remove “${business.businessName}” permanently?\n\nThis deletes their AfriGrow account and all related data. Use this for duplicates or accounts you do not want on the platform.`,
@@ -169,7 +230,7 @@ export function DirectoryModerationAdmin() {
   return (
     <DashboardPageLayout
       title="Directory moderation"
-      description="Verify businesses, unlist them from the Directory, or remove duplicate / unwanted accounts."
+      description="Review verification requests, grant the Verified badge, unlist listings, or remove unwanted accounts."
       heroExtra={
         notice || warning || error ? (
           <>
@@ -192,7 +253,7 @@ export function DirectoryModerationAdmin() {
         ) : undefined
       }
       heroFooter={
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className={`${dashboardCardClass} px-4 py-3`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">All businesses</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{stats.total}</p>
@@ -204,6 +265,10 @@ export function DirectoryModerationAdmin() {
           <div className={`${dashboardCardClass} px-4 py-3`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Verified</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{stats.verified}</p>
+          </div>
+          <div className={`${dashboardCardClass} px-4 py-3`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Pending review</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{stats.pending}</p>
           </div>
           <div className={`${dashboardCardClass} px-4 py-3`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Admin-unlisted</p>
@@ -221,6 +286,7 @@ export function DirectoryModerationAdmin() {
               ["unlisted", "Unlisted"],
               ["verified", "Verified"],
               ["unverified", "Unverified"],
+              ["pending", "Pending review"],
               ["incomplete", "Incomplete"],
             ] as const
           ).map(([value, label]) => (
@@ -283,6 +349,16 @@ export function DirectoryModerationAdmin() {
                         </span>
                       )}
                       <VerificationBadge verified={business.isVerified} />
+                      {business.verificationRequest?.status === "pending" ? (
+                        <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                          Pending review
+                        </span>
+                      ) : null}
+                      {business.directoryOptOut ? (
+                        <span className="rounded-full bg-background px-2.5 py-0.5 text-[10px] font-bold uppercase text-muted ring-1 ring-border">
+                          Owner hidden
+                        </span>
+                      ) : null}
                     </div>
                     <h2 className="mt-3 text-lg font-bold text-foreground">
                       {business.businessName}
@@ -296,10 +372,64 @@ export function DirectoryModerationAdmin() {
                       Score {business.profileScore}%
                       {business.email ? ` · ${business.email}` : ""}
                     </p>
+                    {business.verificationRequest ? (
+                      <div className="mt-3 rounded-xl border border-border bg-background px-3 py-3 text-sm text-muted">
+                        <p className="font-medium text-foreground">
+                          Registration: {business.verificationRequest.registrationNumber || "—"}
+                        </p>
+                        <p className="mt-1">
+                          {[
+                            business.verificationRequest.website || business.website,
+                            business.verificationRequest.instagram,
+                            business.verificationRequest.linkedin,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "No web presence on the request"}
+                        </p>
+                        {business.verificationRequest.notes ? (
+                          <p className="mt-1">{business.verificationRequest.notes}</p>
+                        ) : null}
+                        {business.verificationRequest.documentName ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void handleOpenDocument(business)}
+                            className="mt-2 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
+                          >
+                            View {business.verificationRequest.documentName}
+                          </button>
+                        ) : null}
+                        {business.verificationRequest.status === "rejected" &&
+                        business.verificationRequest.adminNote ? (
+                          <p className="mt-2 text-amber-800">
+                            Last rejection: {business.verificationRequest.adminNote}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
-                    {business.isVerified ? (
+                    {business.verificationRequest?.status === "pending" ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleReview(business, true)}
+                          className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
+                        >
+                          {busy ? "Working…" : "Approve"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleReview(business, false)}
+                          className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-background disabled:opacity-60"
+                        >
+                          {busy ? "Working…" : "Reject"}
+                        </button>
+                      </>
+                    ) : business.isVerified ? (
                       <button
                         type="button"
                         disabled={busy}

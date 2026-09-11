@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CookiePreferencesButton } from "@/components/cookies/CookiePreferencesButton";
 import { EARLY_ACCESS_FOOTER } from "@/lib/product-messaging";
 
 export function DashboardFooter() {
@@ -27,6 +28,15 @@ export function DashboardFooter() {
           <Link href="/dashboard/settings" className="transition hover:text-white">
             Settings
           </Link>
+          <Link href="/privacy" className="transition hover:text-white">
+            Privacy
+          </Link>
+          <Link href="/terms" className="transition hover:text-white">
+            Terms
+          </Link>
+          <CookiePreferencesButton className="transition hover:text-white">
+            Cookies
+          </CookiePreferencesButton>
         </nav>
       </div>
     </footer>

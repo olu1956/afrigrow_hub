@@ -2,9 +2,8 @@
 
 import { cookies } from "next/headers";
 import { isSupabaseAuthEnabled } from "@/lib/auth/config";
+import { COOKIE_CONSENT_COOKIE, VISITOR_COOKIE } from "@/lib/cookies/constants";
 import { createClient } from "@/lib/supabase/server";
-
-const VISITOR_COOKIE = "afrigrow_vid";
 
 export type PublicSiteStats = {
   membersCount: number;
@@ -49,6 +48,10 @@ export async function trackSiteVisitAction(): Promise<void> {
   }
 
   const cookieStore = await cookies();
+  if (cookieStore.get(COOKIE_CONSENT_COOKIE)?.value !== "analytics") {
+    return;
+  }
+
   let visitorKey = cookieStore.get(VISITOR_COOKIE)?.value;
 
   if (!visitorKey) {

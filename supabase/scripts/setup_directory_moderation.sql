@@ -4,6 +4,9 @@
 alter table public.businesses
   add column if not exists directory_hidden boolean not null default false;
 
+alter table public.businesses
+  add column if not exists directory_opt_out boolean not null default false;
+
 create index if not exists businesses_directory_hidden_idx
   on public.businesses (directory_hidden);
 
@@ -20,10 +23,11 @@ create policy "Public can view directory businesses"
     length(trim(business_name)) > 0
     and profile_score >= 40
     and directory_hidden = false
+    and directory_opt_out = false
   );
 
 comment on policy "Public can view directory businesses" on public.businesses is
-  'Directory listings: named businesses with profile_score >= 40 that are not admin-hidden.';
+  'Directory listings: named businesses with profile_score >= 40 that are not admin-hidden or owner-hidden.';
 
 drop policy if exists "Platform admins can update businesses" on public.businesses;
 create policy "Platform admins can update businesses"

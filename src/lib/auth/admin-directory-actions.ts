@@ -3,8 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { isPlatformAdminUser } from "@/lib/auth/admin-access";
 import { isSupabaseAuthEnabled } from "@/lib/auth/config";
+import {
+  listPendingVerificationRequestsAction,
+  type VerificationRequestView,
+} from "@/lib/auth/verification-actions";
 import { BUSINESSES_TABLE, type Business } from "@/lib/database/businesses";
-import { DIRECTORY_MIN_PROFILE_SCORE } from "@/lib/directory/constants";
+import { isBusinessListed } from "@/lib/directory/listing-status";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,12 +20,15 @@ export type AdminDirectoryBusiness = {
   city: string;
   country: string;
   email: string;
+  website: string;
   profileScore: number;
   directoryHidden: boolean;
+  directoryOptOut: boolean;
   listed: boolean;
   isVerified: boolean;
   createdAt: string;
   updatedAt: string;
+  verificationRequest: VerificationRequestView | null;
 };
 
 export type AdminDirectoryActionResult = {
@@ -49,15 +56,21 @@ function isMissingRpc(message: string): boolean {
   );
 }
 
-function mapBusiness(row: Business & { directory_hidden?: boolean | null }): AdminDirectoryBusiness {
+function mapBusiness(
+  row: Business & { directory_hidden?: boolean | null; directory_opt_out?: boolean | null },
+  request: VerificationRequestView | null = null,
+): AdminDirectoryBusiness {
   const rawName = row.business_name?.trim() || "";
   const businessName = rawName || "Untitled business";
   const profileScore = typeof row.profile_score === "number" ? row.profile_score : 0;
   const directoryHidden = Boolean(row.directory_hidden);
-  const listed =
-    Boolean(rawName) &&
-    profileScore >= DIRECTORY_MIN_PROFILE_SCORE &&
-    !directoryHidden;
+  const directoryOptOut = Boolean(row.directory_opt_out);
+  const listed = isBusinessListed({
+    businessName: rawName,
+    profileScore,
+    directoryHidden,
+    directoryOptOut,
+  });
 
   return {
     id: row.id,
@@ -67,12 +80,15 @@ function mapBusiness(row: Business & { directory_hidden?: boolean | null }): Adm
     city: row.city?.trim() || "",
     country: row.country?.trim() || "",
     email: row.email?.trim() || "",
+    website: row.website?.trim() || "",
     profileScore,
     directoryHidden,
+    directoryOptOut,
     listed,
     isVerified: Boolean(row.is_verified),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    verificationRequest: request,
   };
 }
 
@@ -149,9 +165,24 @@ export async function getAdminDirectoryBusinessesAction(): Promise<AdminDirector
     return { ok: false, error: error.message };
   }
 
-  const businesses = ((data ?? []) as Business[]).map(mapBusiness);
+  const businesses = ((data ?? []) as Business[]).map((row) => mapBusiness(row));
 
-  if (businesses.length === 0 && !adminClient) {
+  const requestsResult = await listPendingVerificationRequestsAction();
+  const requestsByBusiness = new Map<string, VerificationRequestView>();
+  if (requestsResult.ok && requestsResult.requests) {
+    for (const request of requestsResult.requests) {
+      if (!requestsByBusiness.has(request.businessId)) {
+        requestsByBusiness.set(request.businessId, request);
+      }
+    }
+  }
+
+  const withRequests = businesses.map((business) => ({
+    ...business,
+    verificationRequest: requestsByBusiness.get(business.id) ?? null,
+  }));
+
+  if (withRequests.length === 0 && !adminClient) {
     return {
       ok: true,
       businesses: [],
@@ -160,7 +191,7 @@ export async function getAdminDirectoryBusinessesAction(): Promise<AdminDirector
     };
   }
 
-  return { ok: true, businesses };
+  return { ok: true, businesses: withRequests };
 }
 
 export async function setDirectoryHiddenAction(input: {

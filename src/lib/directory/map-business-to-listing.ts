@@ -1,6 +1,6 @@
 import type { Business, SocialLinks } from "@/lib/database/businesses";
 import type { DirectoryListing, ListingCategory } from "@/lib/directory-data";
-import { DIRECTORY_MIN_PROFILE_SCORE } from "@/lib/directory/constants";
+import { isBusinessListed } from "@/lib/directory/listing-status";
 
 const VALID_CATEGORIES = new Set<ListingCategory>([
   "retail",
@@ -53,9 +53,12 @@ function formatMemberSince(iso: string): string {
 export function businessToDirectoryListing(business: Business): DirectoryListing | null {
   const name = business.business_name.trim();
   if (
-    !name ||
-    business.profile_score < DIRECTORY_MIN_PROFILE_SCORE ||
-    business.directory_hidden
+    !isBusinessListed({
+      businessName: name,
+      profileScore: business.profile_score,
+      directoryHidden: business.directory_hidden,
+      directoryOptOut: business.directory_opt_out,
+    })
   ) {
     return null;
   }

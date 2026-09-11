@@ -24,6 +24,9 @@ export type Business = {
   is_verified: boolean;
   /** Admin moderation: when true, excluded from the public directory. */
   directory_hidden?: boolean;
+  /** Owner chose not to appear in the public directory. */
+  directory_opt_out?: boolean;
+  registration_number?: string;
   created_at: string;
   updated_at: string;
 };
