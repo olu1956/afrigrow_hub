@@ -5,10 +5,13 @@ import Link from "next/link";
 import {
   BookOpen,
   Calendar,
+  Copy,
+  Download,
   ExternalLink,
   GraduationCap,
   Loader2,
   Plus,
+  Upload,
   Users,
   Video,
 } from "lucide-react";
@@ -26,13 +29,16 @@ import {
   enrollInSessionAction,
   getTrainingPortalDataAction,
   registerAsProviderAction,
+  deleteCourseAction,
   updateCourseAction,
 } from "@/lib/auth/training-actions";
 import {
+  importZoomAttendanceAction,
   setTrainingAttendanceAction,
   toggleLessonCompleteAction,
   markEnrollmentCompleteAction,
 } from "@/lib/auth/training-lms-actions";
+import { downloadTextFile, rosterEntriesToCsv, rosterExportFilename } from "@/lib/training/roster-csv";
 import { uploadTrainingFlyerToStorage } from "@/lib/training/flyer-upload";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -418,6 +424,9 @@ export function TrainingPortal() {
   const [saving, setSaving] = useState(false);
   const [enrollingSessionId, setEnrollingSessionId] = useState<string | null>(null);
   const [emailingSessionId, setEmailingSessionId] = useState<string | null>(null);
+  const [importSessionId, setImportSessionId] = useState("");
+  const [importingAttendance, setImportingAttendance] = useState(false);
+  const [importUnmatched, setImportUnmatched] = useState<{ email: string; name: string }[]>([]);
   const [uploadingFlyerCourseId, setUploadingFlyerCourseId] = useState<string | null>(null);
   const [togglingLessonId, setTogglingLessonId] = useState<string | null>(null);
   const [completingEnrollmentId, setCompletingEnrollmentId] = useState<string | null>(null);
@@ -447,6 +456,16 @@ export function TrainingPortal() {
     }
     return [...seen.values()];
   }, [providerRoster]);
+
+  useEffect(() => {
+    if (rosterSessions.length === 0) {
+      setImportSessionId("");
+      return;
+    }
+    if (!rosterSessions.some((session) => session.id === importSessionId)) {
+      setImportSessionId(rosterSessions[0]?.id ?? "");
+    }
+  }, [importSessionId, rosterSessions]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -753,6 +772,90 @@ export function TrainingPortal() {
     );
   }
 
+  function sessionRoster(sessionId: string): ProviderEnrollmentRosterEntry[] {
+    return providerRoster.filter((entry) => entry.sessionId === sessionId);
+  }
+
+  async function handleCopySessionEmails(sessionId: string) {
+    const emails = [
+      ...new Set(
+        sessionRoster(sessionId)
+          .map((entry) => entry.traineeEmail.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (emails.length === 0) {
+      setError("No enrolment emails on this session yet.");
+      setSuccessMessage(null);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(emails.join(", "));
+      setError(null);
+      setSuccessMessage(
+        `Copied ${emails.length} enrolment email${emails.length === 1 ? "" : "s"} to the clipboard.`,
+      );
+    } catch {
+      setError("Could not copy emails. Download the CSV instead.");
+      setSuccessMessage(null);
+    }
+  }
+
+  function handleExportSessionEmails(sessionId: string) {
+    const rows = sessionRoster(sessionId);
+    if (rows.length === 0) {
+      setError("No enrolments to export for this session.");
+      setSuccessMessage(null);
+      return;
+    }
+    const title = rows[0]?.sessionTitle ?? "session";
+    downloadTextFile(
+      rosterExportFilename(title),
+      rosterEntriesToCsv(rows),
+      "text/csv;charset=utf-8",
+    );
+    setError(null);
+    setSuccessMessage(`Downloaded ${rows.length} enrolment row${rows.length === 1 ? "" : "s"}.`);
+  }
+
+  async function handleImportZoomAttendance(file: File | null) {
+    if (!file) return;
+    if (!importSessionId) {
+      setError("Choose a session before importing Zoom attendance.");
+      return;
+    }
+
+    setImportingAttendance(true);
+    setError(null);
+    setSuccessMessage(null);
+    setImportUnmatched([]);
+
+    const csvText = await file.text();
+    const result = await importZoomAttendanceAction(importSessionId, csvText);
+    setImportingAttendance(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not import Zoom attendance.");
+      return;
+    }
+
+    const unmatched = result.unmatchedAttendees ?? [];
+    setImportUnmatched(unmatched);
+
+    const parts = [
+      `Marked ${result.marked ?? 0} as joined`,
+      `${result.alreadyAttended ?? 0} already ticked`,
+    ];
+    if ((result.unmatchedCount ?? 0) > 0) {
+      parts.push(`${result.unmatchedCount} Zoom names did not match a hub enrolment`);
+    }
+    if ((result.enrolledNotInZoom ?? 0) > 0) {
+      parts.push(`${result.enrolledNotInZoom} enrolled people were not in the Zoom file`);
+    }
+    setSuccessMessage(`${parts.join(". ")}.`);
+    await loadData();
+  }
+
   async function handleRegisterProvider(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -894,6 +997,29 @@ export function TrainingPortal() {
     }
 
     setSuccessMessage("Course restored as a draft. Publish again when you are ready.");
+    await loadData();
+  }
+
+  async function handleDelete(courseId: string, title: string) {
+    const confirmed = window.confirm(
+      `Delete “${title}” permanently?\n\nThis removes the course, its sessions, lessons, and enrolments. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+    const result = await deleteCourseAction({ courseId });
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "Could not delete course.");
+      return;
+    }
+
+    if (selectedCourseId === courseId) setSelectedCourseId("");
+    if (editingCourseId === courseId) cancelEditCourse();
+    setSuccessMessage("Course deleted.");
     await loadData();
   }
 
@@ -1469,6 +1595,14 @@ export function TrainingPortal() {
                           >
                             Archive
                           </button>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => handleDelete(course.id, course.title)}
+                            className="rounded-md border border-red-200 px-4 py-2 text-xs font-bold uppercase tracking-wide text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
 
@@ -1607,14 +1741,24 @@ export function TrainingPortal() {
                             Status: archived
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => handleRestore(course.id)}
-                          className="rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
-                        >
-                          Restore to draft
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => handleRestore(course.id)}
+                            className="rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                          >
+                            Restore to draft
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => handleDelete(course.id, course.title)}
+                            className="rounded-md border border-red-200 px-4 py-2 text-xs font-bold uppercase tracking-wide text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                       {course.sessions.length > 0 ? (
                         <div className="mt-4 space-y-2">
@@ -1637,25 +1781,108 @@ export function TrainingPortal() {
               <div className="space-y-4">
                 <h2 className="text-lg font-bold text-foreground">Enrolled trainees</h2>
                 <p className="text-sm text-muted">
-                  Tick who joined the live session. Enrolment completes when attendance is recorded
-                  and the trainee has finished every module. After the Zoom, email them the
-                  next-steps checklist in one click.
+                  Download or copy hub enrolment emails, then import the Zoom participant CSV to
+                  tick who actually joined. Enrolment completes when attendance is recorded and the
+                  trainee has finished every module.
                 </p>
                 {rosterSessions.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="space-y-3">
                     {rosterSessions.map((session) => (
-                      <button
-                        key={session.id}
-                        type="button"
-                        disabled={Boolean(emailingSessionId)}
-                        onClick={() => void handleEmailSessionNextSteps(session.id)}
-                        className="rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-60"
-                      >
-                        {emailingSessionId === session.id
-                          ? "Sending…"
-                          : `Email next steps — ${session.title}`}
-                      </button>
+                      <div key={session.id} className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={Boolean(emailingSessionId) || importingAttendance}
+                          onClick={() => void handleCopySessionEmails(session.id)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs font-bold uppercase tracking-wide text-foreground disabled:opacity-60"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy emails — {session.title}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={importingAttendance}
+                          onClick={() => handleExportSessionEmails(session.id)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs font-bold uppercase tracking-wide text-foreground disabled:opacity-60"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download CSV — {session.title}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={Boolean(emailingSessionId) || importingAttendance}
+                          onClick={() => void handleEmailSessionNextSteps(session.id)}
+                          className="rounded-md bg-accent px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-60"
+                        >
+                          {emailingSessionId === session.id
+                            ? "Sending…"
+                            : `Email next steps — ${session.title}`}
+                        </button>
+                      </div>
                     ))}
+                    <div className="rounded-xl border border-border bg-background p-4">
+                      <p className="text-sm font-semibold text-foreground">Import Zoom attendance</p>
+                      <p className="mt-1 text-sm text-muted">
+                        In Zoom: Reports → Usage → click the participant count → Export. For a
+                        webinar, use Reports → Webinar → Attendee report. Matching uses email first,
+                        then a unique name if Zoom left email blank.
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-end gap-3">
+                        <label className="block text-sm">
+                          <span className="font-medium text-foreground">Session</span>
+                          <select
+                            value={importSessionId}
+                            onChange={(e) => setImportSessionId(e.target.value)}
+                            disabled={importingAttendance}
+                            className="mt-1 block min-w-[16rem] rounded-md border border-border bg-card px-3 py-2 text-sm"
+                          >
+                            {rosterSessions.map((session) => (
+                              <option key={session.id} value={session.id}>
+                                {session.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-60">
+                          {importingAttendance ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Importing…
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-3.5 w-3.5" />
+                              Upload Zoom CSV
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept=".csv,text/csv"
+                            className="hidden"
+                            disabled={importingAttendance}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              e.target.value = "";
+                              void handleImportZoomAttendance(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {importUnmatched.length > 0 ? (
+                        <div className="mt-3 rounded-lg border border-border px-3 py-2 text-sm text-muted">
+                          <p className="font-medium text-foreground">
+                            Not matched to a hub enrolment
+                          </p>
+                          <ul className="mt-1 list-disc pl-5">
+                            {importUnmatched.map((attendee, index) => (
+                              <li key={`${attendee.email}-${attendee.name}-${index}`}>
+                                {attendee.name || "Unnamed"}
+                                {attendee.email ? ` · ${attendee.email}` : " · no email in Zoom"}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
                 {providerRoster.length === 0 ? (
@@ -1702,7 +1929,7 @@ export function TrainingPortal() {
                                 <input
                                   type="checkbox"
                                   checked={entry.attended}
-                                  disabled={saving}
+                                  disabled={saving || importingAttendance}
                                   onChange={(e) =>
                                     void handleAttendance(entry.id, e.target.checked)
                                   }

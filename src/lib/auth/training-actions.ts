@@ -806,6 +806,46 @@ export async function updateCourseAction(input: {
   return { ok: true };
 }
 
+export async function deleteCourseAction(input: {
+  courseId: string;
+}): Promise<TrainingActionResult> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: true };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "You must be signed in." };
+  }
+
+  const courseId = input.courseId.trim();
+  if (!courseId) {
+    return { ok: false, error: "Missing course." };
+  }
+
+  const { data, error } = await supabase
+    .from(TRAINING_COURSES_TABLE)
+    .delete()
+    .eq("id", courseId)
+    .eq("provider_user_id", user.id)
+    .select("id");
+
+  if (error) {
+    return { ok: false, error: formatTrainingDbError(error.message) };
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Course not found or you are not the provider." };
+  }
+
+  revalidatePath("/dashboard/training");
+  return { ok: true };
+}
+
 export async function createSessionAction(input: {
   courseId: string;
   title: string;

@@ -27,16 +27,31 @@ import {
 } from "@/lib/database/training-sessions";
 import { createClient } from "@/lib/supabase/server";
 import {
+  ACTIVE_TRAINING_ENROLLMENT_STATUSES,
   demoTrainingCertificate,
   isActiveEnrollmentStatus,
   type TrainingCertificateView,
 } from "@/lib/training-data";
 import { validateOptionalLessonVideoUrl } from "@/lib/training/video-embed";
+import {
+  matchZoomAttendeesToEnrollments,
+  parseZoomAttendanceCsv,
+} from "@/lib/training/zoom-attendance-csv";
 
 export type TrainingLmsActionResult = {
   ok: boolean;
   error?: string;
 };
+
+export type ZoomAttendanceImportResult = TrainingLmsActionResult & {
+  marked?: number;
+  alreadyAttended?: number;
+  unmatchedCount?: number;
+  unmatchedAttendees?: { email: string; name: string }[];
+  enrolledNotInZoom?: number;
+};
+
+const ZOOM_CSV_MAX_CHARS = 750_000;
 
 export type TrainingCertificateResult = TrainingLmsActionResult & {
   certificate?: TrainingCertificateView;
@@ -69,6 +84,53 @@ async function assertOwnCourse(
     return { ok: false, error: "Course not found or you are not the provider." };
   }
   return { ok: true };
+}
+
+async function assertCanManageSession(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string; email?: string | null },
+  sessionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from(TRAINING_SESSIONS_TABLE)
+    .select("id, course_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (sessionError) {
+    return { ok: false, error: lmsSetupError(sessionError.message) };
+  }
+
+  const session = sessionRow as Pick<TrainingSession, "id" | "course_id"> | null;
+  if (!session) {
+    return { ok: false, error: "Session not found." };
+  }
+
+  const { data: courseRow, error: courseError } = await supabase
+    .from(TRAINING_COURSES_TABLE)
+    .select("id, provider_user_id")
+    .eq("id", session.course_id)
+    .maybeSingle();
+
+  if (courseError) {
+    return { ok: false, error: lmsSetupError(courseError.message) };
+  }
+
+  const course = courseRow as Pick<TrainingCourse, "id" | "provider_user_id"> | null;
+  if (!course) {
+    return { ok: false, error: "Course not found." };
+  }
+
+  if (course.provider_user_id === user.id) {
+    return { ok: true };
+  }
+
+  const isAdmin = await isPlatformAdminUser(supabase, user.id, user.email);
+  if (isAdmin) {
+    return { ok: true };
+  }
+
+  return { ok: false, error: "You can only import attendance for your own sessions." };
 }
 
 export async function createLessonAction(input: {
@@ -338,6 +400,93 @@ export async function setTrainingAttendanceAction(
 
   revalidateTraining();
   return { ok: true };
+}
+
+export async function importZoomAttendanceAction(
+  sessionId: string,
+  csvText: string,
+): Promise<ZoomAttendanceImportResult> {
+  if (!isSupabaseAuthEnabled()) {
+    return { ok: true, marked: 0, alreadyAttended: 0, unmatchedCount: 0, enrolledNotInZoom: 0 };
+  }
+
+  const trimmedSessionId = sessionId.trim();
+  if (!trimmedSessionId) {
+    return { ok: false, error: "Choose a session before importing attendance." };
+  }
+
+  if (csvText.length > ZOOM_CSV_MAX_CHARS) {
+    return { ok: false, error: "That Zoom file is too large. Export the participant CSV and try again." };
+  }
+
+  const parsed = parseZoomAttendanceCsv(csvText);
+  if (parsed.errors.length > 0) {
+    return { ok: false, error: parsed.errors[0] };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "You must be signed in." };
+  }
+
+  const access = await assertCanManageSession(supabase, user, trimmedSessionId);
+  if (!access.ok) {
+    return access;
+  }
+
+  const { data: enrollmentRows, error: enrollError } = await supabase
+    .from(TRAINING_ENROLLMENTS_TABLE)
+    .select("id, trainee_email, trainee_name, attended")
+    .eq("session_id", trimmedSessionId)
+    .in("status", ACTIVE_TRAINING_ENROLLMENT_STATUSES);
+
+  if (enrollError) {
+    return { ok: false, error: lmsSetupError(enrollError.message) };
+  }
+
+  const enrollments = (enrollmentRows ?? []) as Pick<
+    TrainingEnrollment,
+    "id" | "trainee_email" | "trainee_name" | "attended"
+  >[];
+
+  if (enrollments.length === 0) {
+    return { ok: false, error: "This session has no hub enrolments to match yet." };
+  }
+
+  const matched = matchZoomAttendeesToEnrollments(
+    parsed.attendees,
+    enrollments.map((row) => ({
+      id: row.id,
+      traineeEmail: row.trainee_email ?? "",
+      traineeName: row.trainee_name ?? "",
+      attended: Boolean(row.attended),
+    })),
+  );
+
+  let marked = 0;
+  for (const enrollmentId of matched.toMarkIds) {
+    const { error } = await supabase.rpc("set_training_session_attendance", {
+      p_enrollment_id: enrollmentId,
+      p_attended: true,
+    });
+    if (error) {
+      return { ok: false, error: lmsSetupError(error.message) };
+    }
+    marked += 1;
+  }
+
+  revalidateTraining();
+  return {
+    ok: true,
+    marked,
+    alreadyAttended: matched.alreadyAttendedIds.length,
+    unmatchedCount: matched.unmatchedAttendees.length,
+    unmatchedAttendees: matched.unmatchedAttendees.slice(0, 20),
+    enrolledNotInZoom: matched.enrolledNotInZoom,
+  };
 }
 
 export async function markEnrollmentCompleteAction(
