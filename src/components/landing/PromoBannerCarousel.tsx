@@ -70,7 +70,7 @@ export function PromoBannerCarousel() {
 
           <div
             key={slide.id}
-            className="animate-banner-fade-in grid w-full flex-1 items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] lg:gap-8"
+            className="grid w-full flex-1 items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] lg:gap-8"
           >
             <div className="flex items-center gap-4 sm:gap-5">
               <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-accent/40 bg-white/10 text-accent backdrop-blur-sm sm:h-20 sm:w-20">
