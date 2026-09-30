@@ -68,6 +68,9 @@ const quotationStatusStyles = {
   expired: "bg-background text-muted border border-border",
 } as const;
 
+/** Plan price cards stay off until card payments are live. */
+const SHOW_SUBSCRIPTION_PLANS = false;
+
 export function BillingDashboard() {
   const { hydrated, authEnabled, setSession, session } = useSession();
   const { business } = useDashboardBusiness();
@@ -351,12 +354,14 @@ export function BillingDashboard() {
   return (
     <DashboardPageLayout
       title="Billing"
-      description="Manage your subscription, create client invoices, and track plan usage."
+      description="Create client invoices and quotations."
       heroExtra={
         <div className="space-y-3">
-          <div className="rounded-xl border border-primary/15 bg-primary-light/40 px-4 py-3 text-sm text-foreground">
-            {BILLING_PAGE_NOTE}
-          </div>
+          {SHOW_SUBSCRIPTION_PLANS ? (
+            <div className="rounded-xl border border-primary/15 bg-primary-light/40 px-4 py-3 text-sm text-foreground">
+              {BILLING_PAGE_NOTE}
+            </div>
+          ) : null}
           {notice ? (
             <div className="rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm text-primary">
               {notice}
@@ -387,6 +392,7 @@ export function BillingDashboard() {
         </div>
       }
     >
+      {SHOW_SUBSCRIPTION_PLANS ? (
       <div className="grid gap-6 lg:grid-cols-5">
         <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-dark to-primary p-6 text-white lg:col-span-2">
           <div className="flex items-center gap-2">
@@ -449,7 +455,9 @@ export function BillingDashboard() {
           </ul>
         </section>
       </div>
+      ) : null}
 
+      {SHOW_SUBSCRIPTION_PLANS ? (
       <section>
         <h2 className="mb-4 text-lg font-semibold text-foreground">Available plans</h2>
         <div className="grid gap-4 lg:grid-cols-3">
@@ -536,6 +544,7 @@ export function BillingDashboard() {
           })}
         </div>
       </section>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <CreateInvoiceForm
@@ -561,7 +570,8 @@ export function BillingDashboard() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
+      <div className={SHOW_SUBSCRIPTION_PLANS ? "grid gap-6 lg:grid-cols-5" : "grid gap-6"}>
+        {SHOW_SUBSCRIPTION_PLANS ? (
         <section className={`${dashboardCardClass} lg:col-span-2`}>
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-primary" />
@@ -575,8 +585,9 @@ export function BillingDashboard() {
             You can switch plans above without entering payment details.
           </p>
         </section>
+        ) : null}
 
-        <section className={`${dashboardCardClass} lg:col-span-3`}>
+        <section className={`${dashboardCardClass} ${SHOW_SUBSCRIPTION_PLANS ? "lg:col-span-3" : ""}`}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-semibold text-foreground">Invoice history</h2>
             {invoices.some((invoice) => invoice.source === "live") ? (
