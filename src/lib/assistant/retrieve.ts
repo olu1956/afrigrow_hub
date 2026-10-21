@@ -1,6 +1,19 @@
 import { assistantKnowledge } from "@/lib/assistant/knowledge";
 import type { KnowledgeItem } from "@/lib/assistant/types";
 
+/** Words that appear on almost every page. They must not decide the match by themselves. */
+const GENERIC_TOKENS = new Set([
+  "afrigrow",
+  "hub",
+  "business",
+  "businesses",
+  "member",
+  "members",
+  "sme",
+  "smes",
+  "platform",
+]);
+
 const STOP_WORDS = new Set([
   "a",
   "an",
@@ -54,12 +67,15 @@ export function retrieveKnowledge(query: string, limit = 3): ScoredKnowledge[] {
   const queryTokens = tokens(query);
   if (queryTokens.length === 0) return [];
 
+  const distinctive = queryTokens.filter((token) => !GENERIC_TOKENS.has(token));
+  const scoringTokens = distinctive.length > 0 ? distinctive : queryTokens;
+
   const ranked = assistantKnowledge
     .map((item) => {
       const titleTokens = new Set(tokens(`${item.title} ${item.topics.join(" ")}`));
       const bodyTokens = new Set(tokens(item.body));
       let score = 0;
-      for (const token of queryTokens) {
+      for (const token of scoringTokens) {
         if (titleTokens.has(token)) score += 3;
         else if (bodyTokens.has(token)) score += 1;
       }
