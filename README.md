@@ -20,6 +20,10 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Help assistant
+
+The public assistant is at [http://localhost:3000/help](http://localhost:3000/help). It answers from published page excerpts and does not need an AI key. Optional model settings, privacy notes, and what AfriGrow must review before launch are in [`docs/ASSISTANT.md`](docs/ASSISTANT.md).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

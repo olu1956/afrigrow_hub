@@ -60,6 +60,11 @@ export function Footer() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/help" className="transition hover:text-white">
+                    Ask AfriGrow
+                  </Link>
+                </li>
+                <li>
                   <Link href="/contact" className="transition hover:text-white">
                     Contact
                   </Link>

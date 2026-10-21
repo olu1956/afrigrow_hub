@@ -28,6 +28,9 @@ export function DashboardFooter() {
           <Link href="/dashboard/settings" className="transition hover:text-white">
             Settings
           </Link>
+          <Link href="/help" className="transition hover:text-white">
+            Ask AfriGrow
+          </Link>
           <Link href="/privacy" className="transition hover:text-white">
             Privacy
           </Link>
