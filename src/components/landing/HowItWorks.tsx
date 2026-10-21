@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-const audiences = [
+export const howItWorksAudiences = [
   "Small businesses",
   "Traders & retailers",
   "Manufacturers",
@@ -11,7 +11,7 @@ const audiences = [
   "Entrepreneurs",
 ];
 
-const steps = [
+export const howItWorksSteps = [
   {
     step: "01",
     title: "Create your profile",
@@ -49,7 +49,7 @@ export function HowItWorks() {
               events in Nairobi — AfriGrow Hub scales with you.
             </p>
             <ul className="mt-8 flex flex-wrap gap-2">
-              {audiences.map((item) => (
+              {howItWorksAudiences.map((item) => (
                 <li
                   key={item}
                   className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground"
@@ -68,7 +68,7 @@ export function HowItWorks() {
               Three steps to smarter growth
             </h2>
             <ol className="mt-8 space-y-6">
-              {steps.map((item) => (
+              {howItWorksSteps.map((item) => (
                 <li
                   key={item.step}
                   className="flex gap-5 rounded-2xl border border-border bg-card p-5"

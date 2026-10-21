@@ -1,7 +1,21 @@
+import { publishedPageKnowledge } from "@/lib/assistant/published";
 import { seedBusinessGuides } from "@/lib/learning/guides-data";
 import { FREE_LAUNCH_BADGE, FREE_LAUNCH_HERO_LINE, PRICING_SUBTITLE } from "@/lib/product-messaging";
 import { siteContact } from "@/lib/site-contact";
 import type { KnowledgeItem } from "@/lib/assistant/types";
+
+function plainGuideExcerpt(markdown: string): string {
+  const plain = markdown
+    .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+    .replace(/[*_`>#]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const max = 700;
+  if (plain.length <= max) return plain;
+  const cut = plain.slice(0, max);
+  const sentence = cut.lastIndexOf(". ");
+  return cut.slice(0, sentence > 240 ? sentence + 1 : cut.lastIndexOf(" ")).trim();
+}
 
 /**
  * Excerpts AfriGrow approved on 2026-10-21. Review again by 2027-01-21.
@@ -10,7 +24,7 @@ import type { KnowledgeItem } from "@/lib/assistant/types";
 const guideKnowledge: KnowledgeItem[] = seedBusinessGuides.map((guide) => ({
   id: `guide-${guide.slug}`,
   title: guide.title,
-  body: guide.summary,
+  body: plainGuideExcerpt(guide.body || guide.summary),
   sourceLabel: "Business Academy guide",
   sourceHref: `/learn/${guide.slug}`,
   region: "all",
@@ -309,4 +323,8 @@ const platformKnowledge: KnowledgeItem[] = [
   },
 ];
 
-export const assistantKnowledge: KnowledgeItem[] = [...platformKnowledge, ...guideKnowledge];
+export const assistantKnowledge: KnowledgeItem[] = [
+  ...platformKnowledge,
+  ...publishedPageKnowledge,
+  ...guideKnowledge,
+];
