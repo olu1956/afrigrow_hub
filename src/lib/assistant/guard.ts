@@ -71,9 +71,17 @@ export function isHighImpact(text: string): boolean {
 }
 
 export function userTextForRetrieval(turns: ChatTurn[]): string {
-  return turns
-    .filter((turn) => turn.role === "user")
-    .slice(-4)
+  const users = turns.filter((turn) => turn.role === "user");
+  const latest = users[users.length - 1]?.content ?? "";
+  const earlier = users
+    .slice(0, -1)
+    .slice(-2)
     .map((turn) => turn.content)
     .join("\n");
+  const latestWordCount = latest.trim().split(/\s+/).filter(Boolean).length;
+  // A short reply such as a country name still belongs to the previous question.
+  if (earlier && latestWordCount > 0 && latestWordCount <= 4) {
+    return `${earlier}\n${latest}`;
+  }
+  return latest;
 }

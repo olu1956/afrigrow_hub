@@ -1,3 +1,4 @@
+import { seedBusinessGuides } from "@/lib/learning/guides-data";
 import { FREE_LAUNCH_BADGE, FREE_LAUNCH_HERO_LINE, PRICING_SUBTITLE } from "@/lib/product-messaging";
 import { siteContact } from "@/lib/site-contact";
 import type { KnowledgeItem } from "@/lib/assistant/types";
@@ -6,7 +7,20 @@ import type { KnowledgeItem } from "@/lib/assistant/types";
  * Excerpts AfriGrow approved on 2026-10-21. Review again by 2027-01-21.
  * Do not add schemes, deadlines, or eligibility rules that are not on those pages.
  */
-export const assistantKnowledge: KnowledgeItem[] = [
+const guideKnowledge: KnowledgeItem[] = seedBusinessGuides.map((guide) => ({
+  id: `guide-${guide.slug}`,
+  title: guide.title,
+  body: guide.summary,
+  sourceLabel: "Business Academy guide",
+  sourceHref: `/learn/${guide.slug}`,
+  region: "all",
+  owner: guide.author || "AfriGrow Hub",
+  approvedOn: "2026-10-21",
+  reviewBy: "2027-01-21",
+  topics: [guide.topic, "guide", "academy"],
+}));
+
+const platformKnowledge: KnowledgeItem[] = [
   {
     id: "what-is-afrigrow",
     title: "What AfriGrow Hub is",
@@ -269,4 +283,30 @@ export const assistantKnowledge: KnowledgeItem[] = [
     reviewBy: "2027-01-21",
     topics: ["partner", "partnership", "sponsor"],
   },
+  {
+    id: "training-section",
+    title: "Training courses and live sessions",
+    body: "Yes. AfriGrow has a Training section for signed-in members. Open Training in the dashboard to see courses and live Zoom sessions published by training providers. Enroll in a session, work through its modules, and a certificate appears under My courses once that course is complete. If no provider has published a course, the page says none are open for enrollment yet. Written guides are separate: they live in the Business Academy. After a session, the after-training page lists five next steps for that week.",
+    sourceLabel: "Training",
+    sourceHref: "/dashboard/training",
+    region: "all",
+    owner: "AfriGrow Hub",
+    approvedOn: "2026-10-21",
+    reviewBy: "2027-01-21",
+    topics: ["training", "course", "courses", "session", "sessions", "zoom", "certificate", "enroll", "lesson", "lessons", "section"],
+  },
+  {
+    id: "platform-sections",
+    title: "Dashboard sections",
+    body: "Signed-in members work in these dashboard sections: Business Profile, Marketing, Growth, Matching, Funding, CRM, Directory, Training, Analytics, and Billing. The public site also has Business Academy guides, the initiatives (Access to Finance, Launch My Startup, Prompt Payment Code, Search Engine Gateway, and Small Business Friday), the contact form, and the legal pages. This assistant explains those sections from AfriGrow’s published pages. It cannot see another member’s private records.",
+    sourceLabel: "AfriGrow Hub",
+    sourceHref: "/dashboard",
+    region: "all",
+    owner: "AfriGrow Hub",
+    approvedOn: "2026-10-21",
+    reviewBy: "2027-01-21",
+    topics: ["section", "sections", "dashboard", "feature", "features", "menu", "area", "analytics", "billing"],
+  },
 ];
+
+export const assistantKnowledge: KnowledgeItem[] = [...platformKnowledge, ...guideKnowledge];

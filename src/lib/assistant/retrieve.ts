@@ -75,11 +75,15 @@ export function retrieveKnowledge(query: string, limit = 3): ScoredKnowledge[] {
       const titleTokens = new Set(tokens(`${item.title} ${item.topics.join(" ")}`));
       const bodyTokens = new Set(tokens(item.body));
       let score = 0;
+      let titleHits = 0;
       for (const token of scoringTokens) {
-        if (titleTokens.has(token)) score += 3;
-        else if (bodyTokens.has(token)) score += 1;
+        if (titleTokens.has(token)) {
+          score += 3;
+          titleHits += 1;
+        } else if (bodyTokens.has(token)) score += 1;
       }
-      return { ...item, score };
+      // A page must match the question's subject, not only a shared filler word in the paragraph.
+      return { ...item, score: titleHits > 0 ? score : 0 };
     })
     .filter((item) => item.score >= 3)
     .sort((a, b) => b.score - a.score);
