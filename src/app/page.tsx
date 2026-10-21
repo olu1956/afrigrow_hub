@@ -7,6 +7,7 @@ import { PartnerLogoMarquee } from "@/components/landing/PartnerLogoMarquee";
 import { PricingTeaser } from "@/components/landing/PricingTeaser";
 import { PromoBannerCarousel } from "@/components/landing/PromoBannerCarousel";
 import { PublicGrowthStats } from "@/components/landing/PublicGrowthStats";
+import { HomeHelpButton } from "@/components/assistant/HomeHelpButton";
 import { SitePageLayout } from "@/components/landing/SitePageLayout";
 import { homepagePartnerLogos } from "@/lib/landing/partner-logos";
 
@@ -22,6 +23,7 @@ export default function Home() {
       <PricingTeaser />
       <CTA />
       <PartnerLogoMarquee partners={homepagePartnerLogos} />
+      <HomeHelpButton />
     </SitePageLayout>
   );
 }

@@ -78,7 +78,7 @@ export function CookieBanner() {
   if (!ready || !open) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[70] p-4 sm:p-6">
+    <div className="fixed inset-x-0 bottom-0 z-[70] p-4 pb-28 sm:p-6 sm:pr-32 sm:pb-6">
       <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-5 shadow-xl">
         <p className="text-sm font-semibold text-foreground">Cookies on AfriGrow Hub</p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
