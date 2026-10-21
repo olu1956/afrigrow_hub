@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { PRICING_GROWTH_EARLY_ACCESS, PRICING_SUBTITLE } from "@/lib/product-messaging";
 
-const plans = [
+export const publicPricingPlans = [
   {
     name: "Starter",
     price: "Free",
@@ -66,7 +66,7 @@ export function PricingTeaser() {
         </div>
 
         <div className="mt-14 grid gap-6 lg:grid-cols-3">
-          {plans.map((plan) => (
+          {publicPricingPlans.map((plan) => (
             <div
               key={plan.name}
               className={`flex flex-col rounded-2xl border p-7 ${

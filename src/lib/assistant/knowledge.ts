@@ -1,6 +1,7 @@
 import { publishedPageKnowledge } from "@/lib/assistant/published";
+import { publicPricingPlans } from "@/components/landing/PricingTeaser";
 import { seedBusinessGuides } from "@/lib/learning/guides-data";
-import { FREE_LAUNCH_BADGE, FREE_LAUNCH_HERO_LINE, PRICING_SUBTITLE } from "@/lib/product-messaging";
+import { PRICING_SUBTITLE } from "@/lib/product-messaging";
 import { siteContact } from "@/lib/site-contact";
 import type { KnowledgeItem } from "@/lib/assistant/types";
 
@@ -71,15 +72,20 @@ const platformKnowledge: KnowledgeItem[] = [
   },
   {
     id: "founding-membership",
-    title: "Founding membership and price",
-    body: `${FREE_LAUNCH_BADGE}. ${FREE_LAUNCH_HERO_LINE} ${PRICING_SUBTITLE} Card payments are not active during early access, so joining does not charge a card.`,
-    sourceLabel: "AfriGrow pricing message",
+    title: "Membership plans and price",
+    body: `AfriGrow publishes three plans. ${publicPricingPlans
+      .map(
+        (plan) =>
+          `${plan.name} is ${plan.price.toLowerCase()} ${plan.period}. ${plan.description} It includes ${plan.features.join(", ")}.`,
+      )
+      .join(" ")} ${PRICING_SUBTITLE} Card payments are not active during early access, so joining does not charge a card.`,
+    sourceLabel: "Pricing",
     sourceHref: "/#pricing",
     region: "all",
     owner: "AfriGrow Hub",
     approvedOn: "2026-10-21",
     reviewBy: "2027-01-21",
-    topics: ["price", "pricing", "free", "founding", "membership", "cost", "join"],
+    topics: ["plan", "plans", "starter", "enterprise", "subscription", "price", "pricing", "free", "founding", "membership", "cost", "join"],
   },
   {
     id: "contact-team",
